@@ -78,9 +78,9 @@ export function Badge({ children, tone = 'slate' }: { children: ReactNode; tone?
 
 export function StatusBadge({ status }: { status: string }) {
   const tone =
-    ['Confirmed', 'Completed', 'Published', 'Succeeded', 'Active', 'Resolved', 'Refunded', 'Allow'].includes(status) ? 'green'
-    : ['Held', 'PaymentPending', 'Pending', 'RefundPending', 'Draft', 'InProgress', 'WaitingForUser', 'Review', 'Open', 'PartiallyRefunded'].includes(status) ? 'amber'
-    : ['Cancelled', 'Failed', 'Expired', 'Suspended', 'Hidden', 'Block', 'Deleted', 'Closed'].includes(status) ? 'red'
+    ['Confirmed', 'Completed', 'Published', 'Succeeded', 'Active', 'Resolved', 'Refunded', 'Allow', 'Paid'].includes(status) ? 'green'
+    : ['Held', 'PaymentPending', 'Pending', 'RefundPending', 'Draft', 'InProgress', 'WaitingForUser', 'Review', 'Open', 'PartiallyRefunded', 'AwaitingApproval', 'Authorized', 'Processing'].includes(status) ? 'amber'
+    : ['Cancelled', 'Failed', 'Expired', 'Suspended', 'Hidden', 'Block', 'Deleted', 'Closed', 'Declined', 'Voided'].includes(status) ? 'red'
     : 'slate';
   return <Badge tone={tone}>{status.replace(/([a-z])([A-Z])/g, '$1 $2')}</Badge>;
 }

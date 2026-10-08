@@ -74,7 +74,7 @@ The **RL** column gives the rate-limit policy.
 | POST | /reservations/{id}/cancel/preview | Owner. Returns the refund amount from the policy. | |
 | POST | /reservations/{id}/cancel | `CanManageReservation` | ✅ |
 | GET | /host/reservations | Host | |
-| POST | /host/reservations/{id}/accept, /decline (non-instant-book) | Owner host | ✅ |
+| POST | /host/reservations/{id}/accept, /decline `{reason}` (request-to-book) | Owner host or admin | ✅ |
 
 ## Payments
 | Method | Path | Access | Idem. |
@@ -84,6 +84,9 @@ The **RL** column gives the rate-limit policy.
 | POST | /payments/webhook/{provider} | Signature-verified (no JWT) | event-id based |
 | POST | /admin/payments/{id}/refund | `CanProcessRefund` | ✅ |
 | GET | /host/earnings?from&to, /host/payouts | Host | |
+| PUT | /host/payout-account `{accountHolder, iban, country}` | Host | |
+| POST | /host/payouts (pay out available balance now) | Host, RL `payment` | ✅ |
+| GET | /admin/payouts | Admin | |
 
 ## Reviews, favorites, messaging, notifications
 | Method | Path | Access |

@@ -209,7 +209,9 @@ internal sealed class ReservationConfiguration : IEntityTypeConfiguration<Reserv
         b.Property(x => x.CancellationPolicy).HasConversion<string>().HasMaxLength(20);
         b.Property(x => x.CancellationReason).HasMaxLength(500);
         b.Property(x => x.FailureReason).HasMaxLength(500);
+        b.Property(x => x.DeclineReason).HasMaxLength(500);
         b.Property(x => x.RowVersion).IsRowVersion();
+        b.HasIndex(x => new { x.Status, x.ApprovalDeadline }).HasFilter("[Status] = 'AwaitingApproval'");
         b.HasOne<Property>().WithMany().HasForeignKey(x => x.PropertyId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<User>().WithMany().HasForeignKey(x => x.GuestId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(x => new { x.GuestId, x.CheckIn });
@@ -263,7 +265,7 @@ internal sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         b.HasIndex(x => new { x.Provider, x.ProviderPaymentId }).IsUnique().HasFilter("[ProviderPaymentId] IS NOT NULL");
         b.HasIndex(x => new { x.PayerId, x.IdempotencyKey }).IsUnique();
         // At most one live (pending or succeeded) payment per reservation.
-        b.HasIndex(x => x.ReservationId).IsUnique().HasFilter("[Status] IN ('Pending','Succeeded','PartiallyRefunded','Refunded')")
+        b.HasIndex(x => x.ReservationId).IsUnique().HasFilter("[Status] IN ('Pending','Authorized','Succeeded','PartiallyRefunded','Refunded')")
             .HasDatabaseName("UX_Payments_LiveReservation");
         b.HasIndex(x => new { x.Status, x.CreatedAt });
         b.HasOne<Reservation>().WithMany().HasForeignKey(x => x.ReservationId).OnDelete(DeleteBehavior.Restrict);
@@ -306,6 +308,50 @@ internal sealed class LedgerEntryConfiguration : IEntityTypeConfiguration<Ledger
         b.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
         b.Property(x => x.Description).HasMaxLength(200);
         b.HasIndex(x => new { x.HostId, x.OccurredAt });
+        b.HasIndex(x => x.ReservationId);
+    }
+}
+
+internal sealed class PayoutAccountConfiguration : IEntityTypeConfiguration<PayoutAccount>
+{
+    public void Configure(EntityTypeBuilder<PayoutAccount> b)
+    {
+        b.ToTable("PayoutAccounts", "payments");
+        b.HasIndex(x => x.HostId).IsUnique();
+        b.Property(x => x.AccountHolder).HasMaxLength(100);
+        b.Property(x => x.MaskedAccount).HasMaxLength(40);
+        b.Property(x => x.Country).HasMaxLength(2);
+        b.Property(x => x.RowVersion).IsRowVersion();
+        b.HasOne<User>().WithMany().HasForeignKey(x => x.HostId).OnDelete(DeleteBehavior.Restrict);
+        b.Ignore(x => x.DomainEvents);
+    }
+}
+
+internal sealed class HostPayoutConfiguration : IEntityTypeConfiguration<HostPayout>
+{
+    public void Configure(EntityTypeBuilder<HostPayout> b)
+    {
+        b.ToTable("HostPayouts", "payments", t => t.HasCheckConstraint("CK_HostPayouts_Amount", "[Amount] > 0"));
+        b.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+        b.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+        b.Property(x => x.Destination).HasMaxLength(40);
+        b.Property(x => x.ProviderPayoutId).HasMaxLength(100);
+        b.Property(x => x.FailureReason).HasMaxLength(500);
+        b.Property(x => x.RowVersion).IsRowVersion();
+        // Never two payouts in flight for the same host + currency (prevents double payment under concurrency).
+        b.HasIndex(x => new { x.HostId, x.Currency }).IsUnique().HasFilter("[Status] = 'Processing'").HasDatabaseName("UX_HostPayouts_OneProcessing");
+        b.HasIndex(x => new { x.HostId, x.CreatedAt });
+        b.HasMany(x => x.Items).WithOne().HasForeignKey(i => i.PayoutId).OnDelete(DeleteBehavior.Cascade);
+        b.Navigation(x => x.Items).UsePropertyAccessMode(PropertyAccessMode.Field);
+        b.Ignore(x => x.DomainEvents);
+    }
+}
+
+internal sealed class HostPayoutItemConfiguration : IEntityTypeConfiguration<HostPayoutItem>
+{
+    public void Configure(EntityTypeBuilder<HostPayoutItem> b)
+    {
+        b.ToTable("HostPayoutItems", "payments");
         b.HasIndex(x => x.ReservationId);
     }
 }

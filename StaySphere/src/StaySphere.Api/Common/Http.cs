@@ -74,6 +74,14 @@ public sealed class GlobalExceptionHandler(IProblemDetailsService problemDetails
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext context, Exception exception, CancellationToken cancellationToken)
     {
+        if (context.RequestAborted.IsCancellationRequested)
+        {
+            // The client went away (navigation, closed tab). Not a server error: no 500, no error log.
+            logger.LogDebug("Request {Method} {Path} aborted by the client", context.Request.Method, context.Request.Path);
+            context.Response.StatusCode = 499;
+            return true;
+        }
+
         var (status, title) = exception switch
         {
             UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, "Authentication is required."),

@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
-import { CalendarCheck2, CheckCircle2, CreditCard, Lock, MessageSquare, Plane, Star, Timer } from 'lucide-react';
+import { CalendarCheck2, CheckCircle2, CreditCard, Hourglass, Lock, MessageSquare, Plane, Star, Timer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { api, ApiError, newIdempotencyKey, toQuery } from '@/api/client';
 import type { CancellationPreview, Paged, PaymentDto, ReservationDto } from '@/api/types';
 import { EmptyState, ErrorState, Modal, PageHeader, PageLoader, Skeleton, Spinner, StatusBadge, SafeImg } from '@/components/ui';
-import { money, pluralize, prettyDate, stayLabel } from '@/lib/format';
+import { dateTime, money, pluralize, prettyDate, stayLabel } from '@/lib/format';
 import { toast } from '@/lib/toast';
 
 /** Maps a test card number to the simulator's token — the API never receives card numbers. */
@@ -78,6 +78,18 @@ export function CheckoutPage() {
   if (reservation.isError) return <div className="container-page py-16"><ErrorState error={reservation.error} /></div>;
   const r = reservation.data!;
 
+  if (r.status === 'AwaitingApproval') {
+    return (
+      <div className="container-page max-w-2xl py-16 text-center">
+        <Hourglass className="mx-auto h-16 w-16 text-amber-500" />
+        <h1 className="mt-4 text-3xl font-bold">Request sent to {r.hostName}</h1>
+        <p className="mt-2 text-slate-600">Your card is authorized for {money(r.totalAmount, r.currency)} but <strong>not charged</strong>. The host has until {r.approvalDeadline ? dateTime(r.approvalDeadline) : 'tomorrow'} to respond — if they decline or don't answer, the hold is released automatically.</p>
+        <div className="mt-8 text-left"><StaySummary r={r} /></div>
+        <div className="mt-6 flex justify-center gap-3"><Link to={`/trips/${r.id}`} className="btn-primary">View request</Link><Link to="/messages" className="btn-secondary">Message host</Link></div>
+      </div>
+    );
+  }
+
   if (r.status === 'Confirmed') {
     return (
       <div className="container-page max-w-2xl py-16 text-center">
@@ -131,7 +143,8 @@ export function CheckoutPage() {
                 <p className="font-semibold text-slate-800">Cancellation policy: {r.cancellationPolicy}</p>
                 <p>Free cancellation within 48 hours of booking if check-in is at least 24 hours away.</p>
               </div>
-              <button className="btn-accent mt-6 w-full !py-3 text-base" onClick={() => setConfirmOpen(true)}><Lock className="h-4 w-4" /> Confirm and pay {money(r.totalAmount, r.currency)}</button>
+              <button className="btn-accent mt-6 w-full !py-3 text-base" onClick={() => setConfirmOpen(true)}><Lock className="h-4 w-4" /> {r.requiresApproval ? `Request to book · authorize ${money(r.totalAmount, r.currency)}` : `Confirm and pay ${money(r.totalAmount, r.currency)}`}</button>
+              {r.requiresApproval && <p className="mt-2 text-center text-sm text-slate-500">This host approves each booking. You're only charged if they accept within 24 hours.</p>}
             </section>
           )}
         </div>
@@ -139,10 +152,10 @@ export function CheckoutPage() {
       </div>
 
       <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Confirm your booking">
-        <p className="text-slate-700">You're about to pay <strong>{money(r.totalAmount, r.currency)}</strong> for {r.propertyTitle}, {stayLabel(r.checkIn, r.checkOut)}.</p>
+        <p className="text-slate-700">{r.requiresApproval ? <>We'll authorize <strong>{money(r.totalAmount, r.currency)}</strong> on your card and send your request to the host. You're charged only if they accept.</> : <>You're about to pay <strong>{money(r.totalAmount, r.currency)}</strong> for {r.propertyTitle}, {stayLabel(r.checkIn, r.checkOut)}.</>}</p>
         <div className="mt-6 flex justify-end gap-3">
           <button className="btn-secondary" onClick={() => setConfirmOpen(false)}>Go back</button>
-          <button className="btn-accent" disabled={pay.isPending} onClick={() => pay.mutate()}>{pay.isPending && <Spinner className="h-4 w-4" />} Pay now</button>
+          <button className="btn-accent" disabled={pay.isPending} onClick={() => pay.mutate()}>{pay.isPending && <Spinner className="h-4 w-4" />} {r.requiresApproval ? 'Send request' : 'Pay now'}</button>
         </div>
       </Modal>
     </div>
@@ -215,12 +228,14 @@ export function TripDetailPage() {
           </div>
           <div className="card space-y-3 p-5">
             <p className="flex items-center gap-2"><CalendarCheck2 className="h-5 w-5 text-brand-700" /> Booked {prettyDate(r.createdAt)} · Host: {r.hostName}</p>
+            {r.status === 'AwaitingApproval' && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Waiting for {r.hostName} to respond{r.approvalDeadline ? ` (by ${dateTime(r.approvalDeadline)})` : ''}. Your card is authorized but not charged.</p>}
+            {r.status === 'Declined' && <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-700">This request wasn't accepted{r.declineReason ? `: “${r.declineReason}”` : '.'} You were not charged.</p>}
             {r.refundAmount > 0 && <p className="text-sm text-emerald-700">Refund: {money(r.refundAmount, r.currency)} ({r.status === 'Refunded' ? 'processed' : 'processing'})</p>}
             <div className="flex flex-wrap gap-3 pt-2">
               <Link to={`/property/${r.propertyId}`} className="btn-secondary">View listing</Link>
               <button className="btn-secondary" onClick={() => message.mutate()} disabled={message.isPending}><MessageSquare className="h-4 w-4" /> Message host</button>
               {r.canReview && <button className="btn-primary" onClick={() => setReviewOpen(true)}><Star className="h-4 w-4" /> Write a review</button>}
-              {r.canCancel && <button className="btn-ghost text-red-700" onClick={() => setCancelOpen(true)}>Cancel reservation</button>}
+              {r.canCancel && <button className="btn-ghost text-red-700" onClick={() => setCancelOpen(true)}>{r.status === 'AwaitingApproval' ? 'Withdraw request' : 'Cancel reservation'}</button>}
               <Link to={`/support?reservationId=${r.id}`} className="btn-ghost">Get help</Link>
             </div>
           </div>

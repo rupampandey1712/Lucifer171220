@@ -86,7 +86,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     }
 
     /// <summary>Creates a published listing directly through the domain model (fast, no image processing needed).</summary>
-    public Task<Guid> CreatePublishedPropertyAsync(Guid hostId, decimal price = 120m, string city = "Testville", int maxGuests = 4) =>
+    public Task<Guid> CreatePublishedPropertyAsync(Guid hostId, decimal price = 120m, string city = "Testville", int maxGuests = 4, bool instantBook = true) =>
         WithScopeAsync(async sp =>
         {
             var db = sp.GetRequiredService<AppDbContext>();
@@ -96,7 +96,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             p.UpdateRooms(maxGuests, 2, 2, 1);
             p.SetLocation(new Address("1 Test Road", null, city, null, "00000", "PT", "Portugal"), Coordinates.Create(38.7, -9.1).Value);
             p.UpdatePricing(price, 30m, "EUR", 0, 0, 0, 1);
-            p.UpdateRules(false, false, false, null, new TimeOnly(15, 0), new TimeOnly(11, 0), CancellationPolicy.Flexible, true);
+            p.UpdateRules(false, false, false, null, new TimeOnly(15, 0), new TimeOnly(11, 0), CancellationPolicy.Flexible, instantBook);
             p.SetAmenities(["wifi"]);
             p.AddImage("https://example.test/1.jpg", "https://example.test/1_t.jpg", null, 1200, 800);
             p.Publish(now);

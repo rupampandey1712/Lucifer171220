@@ -14,3 +14,15 @@ public sealed record EarningsSummaryDto(string Currency, decimal Gross, decimal 
 public sealed record LedgerLineDto(Guid ReservationId, string Account, decimal Amount, string Currency, DateTimeOffset OccurredAt, string Description);
 
 public sealed record FakeWebhookPayload(string EventId, string Type, string PaymentIntentId, Guid PaymentId, decimal Amount, string Currency, string? FailureReason);
+
+public sealed record PayoutAccountRequest(string AccountHolder, string Iban, string Country);
+
+public sealed record PayoutAccountDto(string AccountHolder, string MaskedAccount, string Country);
+
+public sealed record CurrencyBalanceDto(string Currency, decimal Available, decimal Pending, decimal PaidOut);
+
+public sealed record PayoutDto(Guid Id, Guid HostId, string? HostName, decimal Amount, string Currency, string Status, string Destination,
+    bool Automatic, string? FailureReason, DateTimeOffset CreatedAt, DateTimeOffset? PaidAt, int ReservationCount);
+
+public sealed record PayoutSummaryDto(PayoutAccountDto? Account, IReadOnlyList<CurrencyBalanceDto> Balances, IReadOnlyList<PayoutDto> Payouts,
+    string Schedule);

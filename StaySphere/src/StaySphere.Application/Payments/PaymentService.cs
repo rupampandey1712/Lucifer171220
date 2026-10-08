@@ -7,7 +7,6 @@ using StaySphere.Contracts.Payments;
 using StaySphere.Domain.Booking;
 using StaySphere.Domain.Common;
 using StaySphere.Domain.Payments;
-using StaySphere.Domain.Pricing;
 
 namespace StaySphere.Application.Payments;
 
@@ -40,7 +39,7 @@ public sealed class PaymentService(
 
         // Business-level idempotency: a reservation is charged at most once, regardless of HTTP retries.
         var existing = await db.Payments.Include(p => p.Refunds).FirstOrDefaultAsync(
-            p => p.ReservationId == reservationId && (p.Status == PaymentStatus.Succeeded || p.Status == PaymentStatus.Pending), ct);
+            p => p.ReservationId == reservationId && (p.Status == PaymentStatus.Succeeded || p.Status == PaymentStatus.Pending || p.Status == PaymentStatus.Authorized), ct);
         if (existing is not null) return ToDto(existing, reservation);
 
         var now = clock.GetUtcNow();
@@ -69,8 +68,11 @@ public sealed class PaymentService(
         try
         {
             // Never retried automatically: the provider idempotency key (payment id) makes a manual retry safe.
-            charge = await provider.ChargeAsync(new ChargeRequest(payment.Id, payment.Amount, payment.Currency, request.PaymentMethodToken,
-                payment.Id.ToString()), ct);
+            // Request-to-book listings only authorize now; the host's acceptance captures (BookingRequestService).
+            var chargeRequest = new ChargeRequest(payment.Id, payment.Amount, payment.Currency, request.PaymentMethodToken, payment.Id.ToString());
+            charge = reservation.RequiresApproval
+                ? await provider.AuthorizeAsync(chargeRequest, ct)
+                : await provider.ChargeAsync(chargeRequest, ct);
         }
         catch (Exception ex) when (ex is HttpRequestException or TimeoutException or TaskCanceledException && !ct.IsCancellationRequested)
         {
@@ -249,7 +251,7 @@ public sealed class PaymentService(
                     // Late success after the hold expired: never keep money for a booking we cannot honour.
                     logger.LogWarning("Payment {PaymentId} succeeded for {Status} reservation {ReservationId}; refunding",
                         payment.Id, reservation.Status, reservation.Id);
-                    await ExecuteRefundAsync(payment, reservation, payment.Amount, "Hold expired before payment completed", ct);
+                    await ExecuteRefundAsync(payment, reservation, payment.Amount, "Hold expired before payment completed", ct, writeLedger: false);
                 }
 
                 break;
@@ -261,13 +263,27 @@ public sealed class PaymentService(
                 }
 
                 break;
+            case ChargeStatus.Authorized:
+                if (!payment.MarkAuthorized(charge.ProviderPaymentId ?? payment.Id.ToString("N"), now)) return;
+                if (reservation.AwaitApproval(now).IsSuccess)
+                {
+                    audit.Record("reservation.requested", nameof(Reservation), reservation.Id.ToString(), actorOverride: reservation.GuestId);
+                }
+                else if (await provider.VoidAsync(payment.ProviderPaymentId!, $"void-{payment.Id}", ct))
+                {
+                    payment.MarkVoided(now); // the hold lapsed while authorizing — release the funds
+                }
+
+                break;
             case ChargeStatus.Pending:
             default:
                 break;
         }
     }
 
-    private async Task<Result> ExecuteRefundAsync(Payment payment, Reservation reservation, decimal amount, string reason, CancellationToken ct)
+    /// <param name="writeLedger">False when the reservation was never confirmed (no earnings were booked to reverse).</param>
+    private async Task<Result> ExecuteRefundAsync(Payment payment, Reservation reservation, decimal amount, string reason, CancellationToken ct,
+        bool writeLedger = true)
     {
         if (amount <= 0) return Result.Success();
         var refund = payment.RequestRefund(amount, reason, clock.GetUtcNow());
@@ -283,34 +299,13 @@ public sealed class PaymentService(
         var now = clock.GetUtcNow();
         payment.CompleteRefund(refund.Value.Id, result.ProviderRefundId!, now);
         reservation.MarkRefunded(now);
-        WriteRefundLedger(reservation, amount, now);
+        if (writeLedger) WriteRefundLedger(reservation, amount, now);
         return Result.Success();
     }
 
-    /// <summary>Immutable ledger entries for a confirmed booking: guest paid = platform fees + taxes + host earning.</summary>
-    private void WriteConfirmationLedger(Reservation r, DateTimeOffset now)
-    {
-        var hostFee = decimal.Round((r.BaseAmount - r.Discount + r.CleaningFee) * PricingSettings.Default.HostFeePercent / 100m, 2);
-        var hostEarning = r.TotalAmount - r.ServiceFee - r.Taxes - hostFee;
-        db.LedgerEntries.AddRange(
-            LedgerEntry.Create(r.Id, r.HostId, LedgerAccount.GuestPayment, r.TotalAmount, r.Currency, now, "Guest payment captured"),
-            LedgerEntry.Create(r.Id, r.HostId, LedgerAccount.PlatformFee, r.ServiceFee + hostFee, r.Currency, now, "Guest service fee + host fee"),
-            LedgerEntry.Create(r.Id, r.HostId, LedgerAccount.TaxesPayable, r.Taxes, r.Currency, now, "Occupancy taxes collected"),
-            LedgerEntry.Create(r.Id, r.HostId, LedgerAccount.HostEarning, hostEarning, r.Currency, now, "Host earning"));
-    }
+    private void WriteConfirmationLedger(Reservation r, DateTimeOffset now) => db.LedgerEntries.AddRange(Ledger.ForConfirmation(r, now));
 
-    /// <summary>Compensating entries — the original rows are never modified.</summary>
-    private void WriteRefundLedger(Reservation r, decimal amount, DateTimeOffset now)
-    {
-        var share = r.TotalAmount == 0 ? 0 : amount / r.TotalAmount;
-        var hostFee = decimal.Round((r.BaseAmount - r.Discount + r.CleaningFee) * PricingSettings.Default.HostFeePercent / 100m, 2);
-        var hostEarning = r.TotalAmount - r.ServiceFee - r.Taxes - hostFee;
-        db.LedgerEntries.AddRange(
-            LedgerEntry.Create(r.Id, r.HostId, LedgerAccount.Refund, -amount, r.Currency, now, "Refund to guest"),
-            LedgerEntry.Create(r.Id, r.HostId, LedgerAccount.HostEarning, -hostEarning * share, r.Currency, now, "Host earning reversal (refund)"),
-            LedgerEntry.Create(r.Id, r.HostId, LedgerAccount.PlatformFee, -(r.ServiceFee + hostFee) * share, r.Currency, now, "Fee reversal (refund)"),
-            LedgerEntry.Create(r.Id, r.HostId, LedgerAccount.TaxesPayable, -r.Taxes * share, r.Currency, now, "Tax reversal (refund)"));
-    }
+    private void WriteRefundLedger(Reservation r, decimal amount, DateTimeOffset now) => db.LedgerEntries.AddRange(Ledger.ForRefund(r, amount, now));
 
     private static PaymentDto ToDto(Payment p, Reservation r) =>
         new(p.Id, p.ReservationId, p.Amount, p.Currency, p.Status.ToString(), p.Provider, p.CardLast4, p.FailureReason,

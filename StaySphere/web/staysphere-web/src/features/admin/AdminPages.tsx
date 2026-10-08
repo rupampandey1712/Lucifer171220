@@ -5,7 +5,7 @@ import { Link } from 'react-router';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { format, parseISO } from 'date-fns';
 import { api, toQuery } from '@/api/client';
-import type { AdminDashboard, AdminProperty, AdminUser, AuditLog, FraudAlert, Paged, PaymentDto, ReportDto, ReservationDto, ReviewDto } from '@/api/types';
+import type { AdminDashboard, AdminProperty, AdminUser, AuditLog, FraudAlert, Paged, PaymentDto, PayoutDto, ReportDto, ReservationDto, ReviewDto } from '@/api/types';
 import { Badge, DataTable, ErrorState, PageHeader, Pagination, Skeleton, StatCard, StatusBadge } from '@/components/ui';
 import { dateTime, money, prettyDate, stayLabel } from '@/lib/format';
 import { toast } from '@/lib/toast';
@@ -152,7 +152,22 @@ export function AdminPaymentsPage() {
           <Pagination page={page} totalPages={Math.ceil(list.data.totalCount / 25)} onChange={setPage} />
         </>
       )}
+      <AdminPayoutsSection />
     </>
+  );
+}
+
+export function AdminPayoutsSection() {
+  const list = usePaged<PayoutDto>('payouts', '/admin/payouts', { pageSize: 25 });
+  return (
+    <section className="mt-10">
+      <h2 className="mb-3 font-semibold">Host payouts</h2>
+      {!list.data ? <Skeleton className="h-40" /> : <DataTable rows={list.data.items} rowKey={(p) => p.id} empty="No payouts yet." columns={[
+        { header: 'Date', cell: (p) => dateTime(p.createdAt) }, { header: 'Host', cell: (p) => p.hostName }, { header: 'Amount', cell: (p) => money(p.amount, p.currency) },
+        { header: 'Stays', cell: (p) => p.reservationCount }, { header: 'Type', cell: (p) => (p.automatic ? 'Automatic' : 'Requested') },
+        { header: 'Status', cell: (p) => <span title={p.failureReason ?? undefined}><StatusBadge status={p.status} /></span> },
+      ]} />}
+    </section>
   );
 }
 

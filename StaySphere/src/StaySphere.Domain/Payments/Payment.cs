@@ -5,6 +5,10 @@ namespace StaySphere.Domain.Payments;
 public enum PaymentStatus
 {
     Pending,
+    /// <summary>Funds reserved on the card but not captured (request-to-book).</summary>
+    Authorized,
+    /// <summary>Authorization released without charging (request declined / expired / cancelled).</summary>
+    Voided,
     Succeeded,
     Failed,
     PartiallyRefunded,
@@ -13,6 +17,8 @@ public enum PaymentStatus
 
 public enum PaymentTransactionKind
 {
+    Authorization,
+    Void,
     Charge,
     Failure,
     Refund,
@@ -56,10 +62,27 @@ public sealed class Payment : AggregateRoot
             UpdatedAt = now,
         };
 
-    /// <summary>Idempotent: a second success notification (e.g. duplicate webhook) is a no-op.</summary>
-    public bool MarkSucceeded(string providerPaymentId, DateTimeOffset now)
+    public bool MarkAuthorized(string providerPaymentId, DateTimeOffset now)
     {
         if (Status != PaymentStatus.Pending) return false;
+        Status = PaymentStatus.Authorized;
+        ProviderPaymentId = providerPaymentId;
+        _transactions.Add(new PaymentTransaction(Id, PaymentTransactionKind.Authorization, Amount, providerPaymentId, now));
+        return true;
+    }
+
+    public bool MarkVoided(DateTimeOffset now)
+    {
+        if (Status != PaymentStatus.Authorized) return false;
+        Status = PaymentStatus.Voided;
+        _transactions.Add(new PaymentTransaction(Id, PaymentTransactionKind.Void, 0, ProviderPaymentId, now));
+        return true;
+    }
+
+    /// <summary>Idempotent: a second success notification (e.g. duplicate webhook) is a no-op. Captures an authorization too.</summary>
+    public bool MarkSucceeded(string providerPaymentId, DateTimeOffset now)
+    {
+        if (Status is not (PaymentStatus.Pending or PaymentStatus.Authorized)) return false;
         Status = PaymentStatus.Succeeded;
         ProviderPaymentId = providerPaymentId;
         _transactions.Add(new PaymentTransaction(Id, PaymentTransactionKind.Charge, Amount, providerPaymentId, now));
@@ -69,7 +92,7 @@ public sealed class Payment : AggregateRoot
 
     public bool MarkFailed(string reason, string? providerRef, DateTimeOffset now)
     {
-        if (Status != PaymentStatus.Pending) return false;
+        if (Status is not (PaymentStatus.Pending or PaymentStatus.Authorized)) return false;
         Status = PaymentStatus.Failed;
         FailureReason = reason;
         ProviderPaymentId ??= providerRef;
@@ -165,6 +188,7 @@ public enum LedgerAccount
     HostEarning,
     Refund,
     Adjustment,
+    /// <summary>Money sent to the host (negative), and its reversal if the transfer fails (positive).</summary>
     Payout,
 }
 

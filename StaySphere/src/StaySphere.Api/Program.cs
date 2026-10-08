@@ -193,7 +193,8 @@ app.UseExceptionHandler();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing")) app.UseHsts();
 app.UseSerilogRequestLogging(o => o.GetLevel = (ctx, _, ex) =>
-    ex is not null || ctx.Response.StatusCode >= 500 ? Serilog.Events.LogEventLevel.Error
+    ctx.RequestAborted.IsCancellationRequested ? Serilog.Events.LogEventLevel.Debug
+    : ex is not null || ctx.Response.StatusCode >= 500 ? Serilog.Events.LogEventLevel.Error
     : ctx.Request.Path.StartsWithSegments("/health") ? Serilog.Events.LogEventLevel.Verbose
     : Serilog.Events.LogEventLevel.Information);
 

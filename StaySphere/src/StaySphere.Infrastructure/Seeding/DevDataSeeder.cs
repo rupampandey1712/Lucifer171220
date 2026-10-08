@@ -204,9 +204,15 @@ public sealed class DevDataSeeder(AppDbContext db, IPasswordHasher hasher, TimeP
                 var r = reservation.Value;
                 r.MarkPaymentPending(bookedAt.AddMinutes(2));
                 var payment = Payment.Start(r.Id, guest.Id, r.TotalAmount, r.Currency, "fake", $"seed-{r.Id:N}", "4242", bookedAt.AddMinutes(2));
-                payment.MarkSucceeded("pi_seed_" + r.Id.ToString("N")[..16], bookedAt.AddMinutes(3));
-                r.Confirm(bookedAt.AddMinutes(3));
-                AddLedger(r, bookedAt.AddMinutes(3));
+                if (r.RequiresApproval)
+                {
+                    payment.MarkAuthorized("pi_seed_" + r.Id.ToString("N")[..16], bookedAt.AddMinutes(3));
+                    r.AwaitApproval(bookedAt.AddMinutes(3));
+                }
+
+                payment.MarkSucceeded("pi_seed_" + r.Id.ToString("N")[..16], bookedAt.AddMinutes(4));
+                r.Confirm(bookedAt.AddMinutes(4));
+                db.LedgerEntries.AddRange(StaySphere.Application.Payments.Ledger.ForConfirmation(r, bookedAt.AddMinutes(4)));
 
                 if (stay.End <= today)
                 {
@@ -239,9 +245,34 @@ public sealed class DevDataSeeder(AppDbContext db, IPasswordHasher hasher, TimeP
             if (reviewsByProperty.TryGetValue(p.Id, out var ratings)) p.ApplyReviewStats(ratings.Average(), ratings.Count);
         }
 
+        // Request-to-book demo: the demo host's first listing requires approval and has two pending requests.
+        var requestListing = properties.First(p => p.HostId == demoHost.Id && p.Status == PropertyStatus.Published);
+        requestListing.UpdateRules(requestListing.PetsAllowed, requestListing.SmokingAllowed, requestListing.EventsAllowed, requestListing.HouseRules,
+            requestListing.CheckInTime, requestListing.CheckOutTime, requestListing.CancellationPolicy, instantBook: false);
+        foreach (var (offset, guest) in new[] { (200, demoGuest), (215, guests[5]) })
+        {
+            var stay = DateRange.Create(today.AddDays(offset), today.AddDays(offset + 3)).Value;
+            var requestedAt = now.AddHours(-2);
+            var price = PriceCalculator.Calculate(requestListing, stay, null, PricingSettings.Default, 10m, requestedAt).Value;
+            var r = Reservation.Hold(requestListing, guest.Id, stay, 2, price, null, requestedAt).Value;
+            r.MarkPaymentPending(requestedAt.AddMinutes(1));
+            var payment = Payment.Start(r.Id, guest.Id, r.TotalAmount, r.Currency, "fake", $"seed-req-{r.Id:N}", "4242", requestedAt.AddMinutes(1));
+            payment.MarkAuthorized("pi_seed_req_" + r.Id.ToString("N")[..12], requestedAt.AddMinutes(2));
+            r.AwaitApproval(requestedAt.AddMinutes(2));
+            r.ClearDomainEvents();
+            payment.ClearDomainEvents();
+            db.Reservations.Add(r);
+            db.Payments.Add(payment);
+        }
+
+        requestListing.ClearDomainEvents();
+
         foreach (var g in guests.Take(40))
             foreach (var p in properties.Where(x => x.Status == PropertyStatus.Published).OrderBy(_ => rng.Next()).Take(rng.Next(0, 5)))
                 db.Favorites.Add(new Favorite(g.Id, p.Id, now.AddDays(-rng.Next(1, 90))));
+
+        // Demo host: payout account (other hosts have none, so their earnings accumulate until they add one).
+        db.PayoutAccounts.Add(PayoutAccount.Create(demoHost.Id, demoHost.DisplayName, "PT50000201231234567890154", "PT", now.AddDays(-200)).Value);
 
         db.Coupons.Add(Coupon.Create("WELCOME10", 10, null, null, 0, now.AddDays(-30), now.AddYears(1), 10_000));
         db.Coupons.Add(Coupon.Create("SUMMER25", 25, null, null, 200, now.AddDays(-5), now.AddMonths(4), 500));
@@ -262,17 +293,6 @@ public sealed class DevDataSeeder(AppDbContext db, IPasswordHasher hasher, TimeP
     private static decimal RoundTo(decimal value, decimal step) => Math.Round(value / step, MidpointRounding.AwayFromZero) * step;
 
     private static int Clamp(int v) => Math.Clamp(v, 1, 5);
-
-    private void AddLedger(Reservation r, DateTimeOffset at)
-    {
-        var hostFee = decimal.Round((r.BaseAmount - r.Discount + r.CleaningFee) * PricingSettings.Default.HostFeePercent / 100m, 2);
-        var hostEarning = r.TotalAmount - r.ServiceFee - r.Taxes - hostFee;
-        db.LedgerEntries.AddRange(
-            LedgerEntry.Create(r.Id, r.HostId, LedgerAccount.GuestPayment, r.TotalAmount, r.Currency, at, "Guest payment captured"),
-            LedgerEntry.Create(r.Id, r.HostId, LedgerAccount.PlatformFee, r.ServiceFee + hostFee, r.Currency, at, "Guest service fee + host fee"),
-            LedgerEntry.Create(r.Id, r.HostId, LedgerAccount.TaxesPayable, r.Taxes, r.Currency, at, "Occupancy taxes collected"),
-            LedgerEntry.Create(r.Id, r.HostId, LedgerAccount.HostEarning, hostEarning, r.Currency, at, "Host earning"));
-    }
 
     public static string Describe() => string.Create(CultureInfo.InvariantCulture, $"{Cities.Length} cities");
 }

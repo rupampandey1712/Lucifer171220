@@ -17,6 +17,8 @@ public sealed class ScheduledJobs(IServiceScopeFactory scopes, ILogger<Scheduled
     private static readonly Job[] Jobs =
     [
         new("expire-holds", TimeSpan.FromSeconds(30), (sp, ct) => sp.GetRequiredService<IBookingMaintenance>().ExpireHoldsAsync(ct)),
+        new("expire-booking-requests", TimeSpan.FromSeconds(60), (sp, ct) => sp.GetRequiredService<IBookingRequestService>().ExpireOverdueAsync(ct)),
+        new("host-payouts", TimeSpan.FromHours(1), (sp, ct) => sp.GetRequiredService<IPayoutService>().RunScheduledPayoutsAsync(ct)),
         new("reconcile-payments", TimeSpan.FromSeconds(60), (sp, ct) => sp.GetRequiredService<IPaymentService>().ReconcilePendingAsync(ct)),
         new("complete-stays", TimeSpan.FromMinutes(10), (sp, ct) => sp.GetRequiredService<IBookingMaintenance>().CompleteFinishedStaysAsync(ct)),
         new("checkin-reminders", TimeSpan.FromHours(1), (sp, ct) => sp.GetRequiredService<IBookingMaintenance>().SendCheckInRemindersAsync(ct)),

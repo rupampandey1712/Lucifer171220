@@ -23,7 +23,10 @@ public sealed record ReservationDto(
     DateOnly CheckIn, DateOnly CheckOut, int Guests, int Nights,
     decimal BaseAmount, decimal CleaningFee, decimal ServiceFee, decimal Taxes, decimal Discount, decimal TotalAmount, string Currency,
     string Status, string CancellationPolicy, DateTimeOffset? HoldExpiresAt, DateTimeOffset CreatedAt, decimal RefundAmount,
-    bool CanCancel, bool CanReview, bool HasReview);
+    bool CanCancel, bool CanReview, bool HasReview,
+    bool RequiresApproval = false, DateTimeOffset? ApprovalDeadline = null, string? DeclineReason = null, bool CanRespond = false);
+
+public sealed record DeclineRequest(string? Reason);
 
 public sealed record CancelReservationRequest(string? Reason);
 

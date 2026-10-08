@@ -42,6 +42,7 @@ public sealed class LocalFakePaymentProvider(
     private static readonly ConcurrentDictionary<string, ChargeResult> ByIdempotencyKey = new();
     private static readonly ConcurrentDictionary<Guid, ChargeResult> ByPaymentId = new();
     private static readonly ConcurrentDictionary<string, ProviderRefundResult> Refunds = new();
+    private static readonly ConcurrentDictionary<string, bool> VoidedAuthorizations = new();
 
     public string Name => ProviderName;
 
@@ -77,6 +78,42 @@ public sealed class LocalFakePaymentProvider(
         });
 
         return Task.FromResult(result);
+    }
+
+    /// <summary>Same test tokens as charges; delayed tokens authorize immediately (authorizations have no webhook flow here).</summary>
+    public Task<ChargeResult> AuthorizeAsync(ChargeRequest request, CancellationToken cancellationToken)
+    {
+        var result = ByIdempotencyKey.GetOrAdd("auth:" + request.IdempotencyKey, _ =>
+        {
+            var intentId = "pi_" + Guid.NewGuid().ToString("N")[..20];
+            var token = request.PaymentMethodToken.ToLowerInvariant();
+            var outcome = token switch
+            {
+                "tok_0002" or "tok_declined" => new ChargeResult(ChargeStatus.Declined, intentId, "Your card was declined.", "0002"),
+                "tok_9995" => new ChargeResult(ChargeStatus.Declined, intentId, "Insufficient funds.", "9995"),
+                _ when token.StartsWith("tok_", StringComparison.Ordinal) => new ChargeResult(ChargeStatus.Authorized, intentId, null, token[^4..]),
+                _ => new ChargeResult(ChargeStatus.Declined, intentId, "Invalid payment method.", null),
+            };
+            ByPaymentId[request.PaymentId] = outcome;
+            return outcome;
+        });
+        return Task.FromResult(result);
+    }
+
+    /// <summary>
+    /// Captures any authorization that was not voided. (A real gateway keeps authorizations server-side; this simulator
+    /// must not lose them on restart, otherwise requests created before a restart — or by the seeder — could never be accepted.)
+    /// </summary>
+    public Task<ChargeResult> CaptureAsync(string providerPaymentId, decimal amount, string idempotencyKey, CancellationToken cancellationToken) =>
+        Task.FromResult(ByIdempotencyKey.GetOrAdd("capture:" + idempotencyKey, _ =>
+            VoidedAuthorizations.ContainsKey(providerPaymentId)
+                ? new ChargeResult(ChargeStatus.Declined, providerPaymentId, "This authorization was released.", null)
+                : new ChargeResult(ChargeStatus.Succeeded, providerPaymentId, null, null)));
+
+    public Task<bool> VoidAsync(string providerPaymentId, string idempotencyKey, CancellationToken cancellationToken)
+    {
+        VoidedAuthorizations[providerPaymentId] = true;
+        return Task.FromResult(true); // voiding an unknown/already-voided authorization is a no-op at real gateways too
     }
 
     public Task<ProviderRefundResult> RefundAsync(string providerPaymentId, decimal amount, string idempotencyKey, CancellationToken cancellationToken) =>

@@ -23,6 +23,9 @@ public sealed record ReservationConfirmedEvent(Guid ReservationId, Guid Property
 public sealed record ReservationCancelledEvent(Guid ReservationId, Guid PropertyId, Guid GuestId, Guid HostId, decimal RefundAmount, string Currency) : IntegrationEvent;
 public sealed record ReservationExpiredEvent(Guid ReservationId, Guid GuestId) : IntegrationEvent;
 public sealed record ReservationFailedEvent(Guid ReservationId, Guid GuestId, string Reason) : IntegrationEvent;
+public sealed record ReservationRequestedEvent(Guid ReservationId, Guid PropertyId, Guid GuestId, Guid HostId, DateTimeOffset Deadline) : IntegrationEvent;
+public sealed record ReservationDeclinedEvent(Guid ReservationId, Guid PropertyId, Guid GuestId, Guid HostId, bool Expired) : IntegrationEvent;
+public sealed record PayoutPaidEvent(Guid PayoutId, Guid HostId, decimal Amount, string Currency) : IntegrationEvent;
 public sealed record ReservationCompletedEvent(Guid ReservationId, Guid PropertyId, Guid GuestId, Guid HostId) : IntegrationEvent;
 public sealed record PaymentSucceededEvent(Guid PaymentId, Guid ReservationId, Guid PayerId, decimal Amount, string Currency) : IntegrationEvent;
 public sealed record PaymentFailedEvent(Guid PaymentId, Guid ReservationId, Guid PayerId, string Reason) : IntegrationEvent;

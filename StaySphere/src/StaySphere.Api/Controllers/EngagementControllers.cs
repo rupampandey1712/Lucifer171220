@@ -154,8 +154,34 @@ public sealed class SupportController(ISupportService support) : ApiControllerBa
 [Route("api/v{version:apiVersion}/host")]
 [Authorize(Policy = Policies.CanManageProperty)]
 public sealed class HostController(IPropertyService properties, IReservationService reservations, IPaymentService payments, IReviewService reviews,
-    IHostDashboardService dashboard) : ApiControllerBase
+    IHostDashboardService dashboard, IBookingRequestService requests, IPayoutService payouts) : ApiControllerBase
 {
+    /// <summary>Accept a request-to-book: captures the authorized payment and confirms the stay.</summary>
+    [HttpPost("reservations/{id:guid}/accept")]
+    [Idempotent("host.accept")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ReservationDto>> Accept(Guid id, CancellationToken ct) => FromResult(await requests.ApproveAsync(id, ct));
+
+    /// <summary>Decline a request-to-book: the card authorization is voided and the dates are released.</summary>
+    [HttpPost("reservations/{id:guid}/decline")]
+    [Idempotent("host.decline")]
+    public async Task<ActionResult<ReservationDto>> Decline(Guid id, DeclineRequest request, CancellationToken ct) =>
+        FromResult(await requests.DeclineAsync(id, request.Reason, ct));
+
+    /// <summary>Balances (available / pending / paid per currency), payout account and payout history.</summary>
+    [HttpGet("payouts")]
+    public async Task<ActionResult<PayoutSummaryDto>> Payouts(CancellationToken ct) => Ok(await payouts.GetSummaryAsync(ct));
+
+    [HttpPut("payout-account")]
+    public async Task<ActionResult<PayoutAccountDto>> SetPayoutAccount(PayoutAccountRequest request, CancellationToken ct) =>
+        FromResult(await payouts.SetAccountAsync(request, ct));
+
+    /// <summary>Pay out all currently available earnings now (one payout per currency).</summary>
+    [HttpPost("payouts")]
+    [Idempotent("host.payout")]
+    [EnableRateLimiting(RateLimitPolicies.Payment)]
+    public async Task<ActionResult<IReadOnlyList<PayoutDto>>> RequestPayout(CancellationToken ct) => FromResult(await payouts.RequestPayoutAsync(ct));
+
     [HttpGet("dashboard")]
     public async Task<ActionResult<HostDashboardDto>> Dashboard(CancellationToken ct) => Ok(await dashboard.GetAsync(ct));
 
@@ -219,6 +245,11 @@ public sealed class AdminController(IAdminService admin, IReviewService reviews,
     [Idempotent("admin.refund")]
     public async Task<ActionResult<PaymentDto>> Refund(Guid id, RefundRequest request, CancellationToken ct) =>
         FromResult(await payments.RefundAsync(id, request.Amount, request.Reason, ct));
+
+    [HttpGet("payouts")]
+    public async Task<ActionResult<PagedResult<PayoutDto>>> Payouts([FromServices] IPayoutService payoutService, [FromQuery] string? status,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
+        Ok(await payoutService.ListAllAsync(status, page, pageSize, ct));
 
     [HttpGet("reviews")]
     [Authorize(Policy = Policies.CanModerateReview)]

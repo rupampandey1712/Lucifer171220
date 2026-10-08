@@ -163,6 +163,21 @@ public sealed class PayReservationRequestValidator : AbstractValidator<PayReserv
     }
 }
 
+public sealed class PayoutAccountRequestValidator : AbstractValidator<PayoutAccountRequest>
+{
+    public PayoutAccountRequestValidator()
+    {
+        RuleFor(x => x.AccountHolder).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Iban).NotEmpty().MaximumLength(42);
+        RuleFor(x => x.Country).NotEmpty().Length(2);
+    }
+}
+
+public sealed class DeclineRequestValidator : AbstractValidator<DeclineRequest>
+{
+    public DeclineRequestValidator() => RuleFor(x => x.Reason).MaximumLength(500);
+}
+
 public sealed class RefundRequestValidator : AbstractValidator<RefundRequest>
 {
     public RefundRequestValidator()

@@ -27,6 +27,8 @@ public interface IAppDbContext
     DbSet<ReservationNight> ReservationNights { get; }
     DbSet<Payment> Payments { get; }
     DbSet<LedgerEntry> LedgerEntries { get; }
+    DbSet<PayoutAccount> PayoutAccounts { get; }
+    DbSet<HostPayout> HostPayouts { get; }
     DbSet<WebhookEvent> WebhookEvents { get; }
     DbSet<Coupon> Coupons { get; }
     DbSet<Review> Reviews { get; }

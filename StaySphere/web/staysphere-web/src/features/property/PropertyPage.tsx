@@ -218,9 +218,11 @@ function BookingWidget({ p, checkIn, checkOut, onDates }: { p: PropertyDetail; c
       {ready && quote.data && !quote.data.available && <p role="alert" className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">Those dates aren't available. Please pick different dates.</p>}
 
       <button className="btn-accent mt-4 w-full !py-3 text-base" disabled={!ready || !quote.data?.available || reserve.isPending || quote.isFetching} onClick={onReserve}>
-        {reserve.isPending && <Spinner className="h-4 w-4" />} {ready ? 'Reserve' : 'Check availability'}
+        {reserve.isPending && <Spinner className="h-4 w-4" />} {!ready ? 'Check availability' : p.instantBook ? 'Reserve' : 'Request to book'}
       </button>
-      {ready && <p className="mt-2 text-center text-sm text-slate-500">You won't be charged yet — dates are held for 10 minutes</p>}
+      {ready && <p className="mt-2 text-center text-sm text-slate-500">{p.instantBook
+        ? "You won't be charged yet — dates are held for 10 minutes"
+        : `${p.host.displayName} reviews requests within 24 hours. Your card is only charged if they accept.`}</p>}
 
       {ready && quote.isLoading && <div className="mt-4 space-y-2"><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-4/5" /><Skeleton className="h-4 w-3/5" /></div>}
       {quote.data && <div className="mt-5"><PriceBreakdown quote={quote.data} /></div>}

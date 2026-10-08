@@ -82,11 +82,11 @@ cd web/staysphere-web && npm ci && npm run dev # http://localhost:5173 (proxies 
 
 | Suite | Command | What it proves |
 |---|---|---|
-| Unit (52) | `dotnet test tests/StaySphere.UnitTests` | Pricing, cancellation policies, reservation state machine, value objects, validators, PII redaction |
+| Unit (63) | `dotnet test tests/StaySphere.UnitTests` | Pricing, cancellation policies, reservation state machine, value objects, validators, PII redaction, request-to-book and payout rules |
 | Architecture (6) | `dotnet test tests/StaySphere.ArchitectureTests` | Layer and module boundaries; controllers can't touch the DB; AI tools can't reach infrastructure |
-| Integration (23) | `dotnet test tests/StaySphere.IntegrationTests` | Real SQL Server via Testcontainers. **20 concurrent bookings → exactly one wins**; duplicate webhook → one capture; idempotent reservations; hold expiry; refunds through the event pipeline; authorization (403/404); review rules; AI confirmation gate |
+| Integration (30) | `dotnet test tests/StaySphere.IntegrationTests` | Real SQL Server via Testcontainers. **20 concurrent bookings → exactly one wins**; duplicate webhook → one capture; idempotent reservations; hold expiry; refunds through the event pipeline; authorization (403/404); review rules; AI confirmation gate; host accept (capture) / decline (void) / expiry; **concurrent payout requests → exactly one payout**; failed transfers reversed in the ledger |
 | Frontend (16) | `cd web/staysphere-web && npm test` | Components, API client (refresh single-flight, ProblemDetails), card tokenization |
-| E2E (8) | `npx playwright test` (stack running) | Log in → search → reserve → pay → confirmed; host dashboard; RBAC; mobile smoke |
+| E2E (9) | `npx playwright test` (stack running) | Log in → search → reserve → pay → confirmed; host dashboard; host accepts a booking request and sees payouts; RBAC; mobile smoke |
 
 ## Where things are
 
@@ -111,6 +111,8 @@ StaySphere/
 - **Idempotency everywhere it matters.** An `Idempotency-Key` header protects reservations, payments, cancellations and refunds. The provider receives its own idempotency key. Webhooks are deduplicated by `(provider, eventId)` and checked with an HMAC signature plus a 5-minute replay window.
 - **Outbox + inbox.** Events are written in the same transaction as the state change and published afterwards. Consumers deduplicate per handler. See [ADR-004](docs/adr/ADR-004-service-bus.md).
 - **Auth.** Access JWTs last 15 minutes and are kept in memory. The refresh token lives in an HttpOnly, SameSite=Strict cookie that rotates on every use; reusing an old token revokes the whole token family. Accounts lock after 5 failed attempts, and rate limits apply per policy.
+- **Request-to-book.** Listings with Instant Book off take requests. The guest's card is *authorized* (not charged) and the dates are blocked. The host has 24 hours to accept, which captures the payment and confirms the stay, or decline, which voids the authorization and frees the dates. Unanswered requests expire automatically, and a guest can withdraw at any time.
+- **Host payouts.** Earnings become available 24 hours after check-in and are paid out daily per currency, or on demand with "Pay out now". Each payout writes negative `Payout` ledger entries in the same transaction as the payout row. A filtered unique index allows only one payout in flight per host, and a failed transfer is reversed with compensating entries. Only a masked IBAN is stored; in dev, an IBAN ending in `0000` simulates a failed transfer.
 - **AI safety.** Agents act only through tools that call application services as the signed-in user. PII is redacted before text reaches a model. Bookings become a server-side pending action that executes only after the user clicks Confirm. See [AI agents](docs/architecture/06-ai-agents.md).
 
 Full documentation: [docs/](docs/). Implementation notes and deviations from the original design: [ADR-008](docs/adr/ADR-008-implementation-notes.md).

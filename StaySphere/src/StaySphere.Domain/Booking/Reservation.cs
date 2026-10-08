@@ -16,11 +16,16 @@ public enum ReservationStatus
     Refunded,
     Failed,
     Expired,
+    /// <summary>Request-to-book: card authorized (not captured), waiting for the host to accept or decline.</summary>
+    AwaitingApproval,
+    /// <summary>Request-to-book declined by the host or not answered in time. Authorization voided, nothing charged.</summary>
+    Declined,
 }
 
 public sealed class Reservation : AggregateRoot
 {
     public static readonly TimeSpan HoldDuration = TimeSpan.FromMinutes(10);
+    public static readonly TimeSpan ApprovalWindow = TimeSpan.FromHours(24);
 
     private readonly List<ReservationNight> _nightRows = [];
     private readonly List<ReservationStatusChange> _history = [];
@@ -50,11 +55,16 @@ public sealed class Reservation : AggregateRoot
     public decimal RefundAmount { get; private set; }
     public string? CancellationReason { get; private set; }
     public string? FailureReason { get; private set; }
+    /// <summary>Snapshot of the listing's booking mode at hold time: true = host must accept (request-to-book).</summary>
+    public bool RequiresApproval { get; private set; }
+    public DateTimeOffset? ApprovalDeadline { get; private set; }
+    public string? DeclineReason { get; private set; }
 
     public IReadOnlyCollection<ReservationNight> NightRows => _nightRows;
     public IReadOnlyCollection<ReservationStatusChange> History => _history;
 
-    public bool HoldsInventory => Status is ReservationStatus.Held or ReservationStatus.PaymentPending or ReservationStatus.Confirmed;
+    public bool HoldsInventory => Status is ReservationStatus.Held or ReservationStatus.PaymentPending or ReservationStatus.Confirmed
+        or ReservationStatus.AwaitingApproval;
 
     /// <summary>
     /// Creates a 10-minute hold. One <see cref="ReservationNight"/> row per night is written; a filtered unique index on
@@ -92,6 +102,7 @@ public sealed class Reservation : AggregateRoot
             Currency = price.Currency,
             CouponCode = couponCode,
             CancellationPolicy = property.CancellationPolicy,
+            RequiresApproval = !property.InstantBook,
             Status = ReservationStatus.Held,
             HoldExpiresAt = now.Add(HoldDuration),
             CreatedAt = now,
@@ -115,14 +126,46 @@ public sealed class Reservation : AggregateRoot
         return Result.Success();
     }
 
+    /// <summary>Request-to-book: the payment is authorized; the host now has <see cref="ApprovalWindow"/> to respond.</summary>
+    public Result AwaitApproval(DateTimeOffset now)
+    {
+        if (Status == ReservationStatus.AwaitingApproval) return Result.Success();
+        if (!RequiresApproval) return Error.Conflict("reservation.instant", "This reservation does not need host approval.");
+        if (Status is not (ReservationStatus.PaymentPending or ReservationStatus.Held))
+            return Error.Conflict("reservation.state", $"Cannot request approval for a reservation that is {Status}.");
+        Transition(ReservationStatus.AwaitingApproval, now, GuestId, null);
+        HoldExpiresAt = null;
+        ApprovalDeadline = now.Add(ApprovalWindow);
+        Raise(new ReservationRequestedDomainEvent(Id, PropertyId, GuestId, HostId, ApprovalDeadline.Value));
+        return Result.Success();
+    }
+
+    /// <summary>Host declines (or the request times out). Dates are released and nothing is charged.</summary>
+    public Result Decline(Guid? actorId, string? reason, DateTimeOffset now)
+    {
+        if (Status == ReservationStatus.Declined) return Result.Success();
+        if (Status != ReservationStatus.AwaitingApproval)
+            return Error.Conflict("reservation.state", $"Only pending requests can be declined (this one is {Status}).");
+        if (actorId is { } a && a != HostId) return Error.Forbidden("reservation.not_host", "Only the host can respond to this request.");
+        ReleaseNights();
+        DeclineReason = reason ?? (actorId is null ? "The host did not respond in time." : null);
+        ApprovalDeadline = null;
+        Transition(ReservationStatus.Declined, now, actorId, DeclineReason);
+        Raise(new ReservationDeclinedDomainEvent(Id, PropertyId, GuestId, HostId, actorId is null));
+        return Result.Success();
+    }
+
     public Result Confirm(DateTimeOffset now)
     {
         if (Status == ReservationStatus.Confirmed) return Result.Success();
-        if (Status is not (ReservationStatus.PaymentPending or ReservationStatus.Held))
+        if (RequiresApproval && Status is ReservationStatus.PaymentPending or ReservationStatus.Held)
+            return Error.Conflict("reservation.needs_approval", "The host has to accept this request first.");
+        if (Status is not (ReservationStatus.PaymentPending or ReservationStatus.Held or ReservationStatus.AwaitingApproval))
             return Error.Conflict("reservation.state", $"Cannot confirm a reservation that is {Status}.");
         Transition(ReservationStatus.Confirmed, now, null, null);
         ConfirmedAt = now;
         HoldExpiresAt = null;
+        ApprovalDeadline = null;
         Raise(new ReservationConfirmedDomainEvent(Id, PropertyId, GuestId, HostId, TotalAmount, Currency));
         return Result.Success();
     }
@@ -151,8 +194,9 @@ public sealed class Reservation : AggregateRoot
     /// <summary>Cancels a reservation. Refund amount comes from <see cref="CancellationPolicyCalculator"/> on the server.</summary>
     public Result Cancel(Guid actorId, decimal refundAmount, string? reason, DateTimeOffset now)
     {
-        if (Status is ReservationStatus.Held or ReservationStatus.PaymentPending)
+        if (Status is ReservationStatus.Held or ReservationStatus.PaymentPending or ReservationStatus.AwaitingApproval)
         {
+            // Nothing was captured yet (an approval-pending authorization is voided by the payments handler).
             ReleaseNights();
             Transition(ReservationStatus.Cancelled, now, actorId, reason);
             CancelledAt = now;
@@ -258,4 +302,6 @@ public sealed record ReservationConfirmedDomainEvent(Guid ReservationId, Guid Pr
 public sealed record ReservationCancelledDomainEvent(Guid ReservationId, Guid PropertyId, Guid GuestId, Guid HostId, decimal RefundAmount, string Currency) : IDomainEvent;
 public sealed record ReservationExpiredDomainEvent(Guid ReservationId, Guid GuestId) : IDomainEvent;
 public sealed record ReservationFailedDomainEvent(Guid ReservationId, Guid GuestId, string Reason) : IDomainEvent;
+public sealed record ReservationRequestedDomainEvent(Guid ReservationId, Guid PropertyId, Guid GuestId, Guid HostId, DateTimeOffset Deadline) : IDomainEvent;
+public sealed record ReservationDeclinedDomainEvent(Guid ReservationId, Guid PropertyId, Guid GuestId, Guid HostId, bool Expired) : IDomainEvent;
 public sealed record ReservationCompletedDomainEvent(Guid ReservationId, Guid PropertyId, Guid GuestId, Guid HostId) : IDomainEvent;

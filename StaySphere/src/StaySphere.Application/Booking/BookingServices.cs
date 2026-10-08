@@ -284,11 +284,14 @@ public sealed class ReservationService(
         var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
         return scope?.ToLowerInvariant() switch
         {
-            "upcoming" => query.Where(r => (r.Status == ReservationStatus.Confirmed || r.Status == ReservationStatus.Held || r.Status == ReservationStatus.PaymentPending) && r.CheckOut >= today)
+            "upcoming" => query.Where(r => (r.Status == ReservationStatus.Confirmed || r.Status == ReservationStatus.Held || r.Status == ReservationStatus.PaymentPending
+                                            || r.Status == ReservationStatus.AwaitingApproval) && r.CheckOut >= today)
                 .OrderBy(r => r.CheckIn),
             "past" => query.Where(r => r.Status == ReservationStatus.Completed || (r.Status == ReservationStatus.Confirmed && r.CheckOut < today))
                 .OrderByDescending(r => r.CheckIn),
-            "cancelled" => query.Where(r => r.Status == ReservationStatus.Cancelled || r.Status == ReservationStatus.Refunded || r.Status == ReservationStatus.RefundPending)
+            "requests" => query.Where(r => r.Status == ReservationStatus.AwaitingApproval).OrderBy(r => r.ApprovalDeadline),
+            "cancelled" => query.Where(r => r.Status == ReservationStatus.Cancelled || r.Status == ReservationStatus.Refunded || r.Status == ReservationStatus.RefundPending
+                                            || r.Status == ReservationStatus.Declined)
                 .OrderByDescending(r => r.UpdatedAt),
             _ => query.OrderByDescending(r => r.CreatedAt),
         };
@@ -324,14 +327,16 @@ public sealed class ReservationService(
         return rows.Select(x =>
         {
             var r = x.R;
-            var canCancel = r.Status is ReservationStatus.Held or ReservationStatus.PaymentPending ||
+            var canCancel = r.Status is ReservationStatus.Held or ReservationStatus.PaymentPending or ReservationStatus.AwaitingApproval ||
                             (r.Status == ReservationStatus.Confirmed && r.CheckIn > today);
             var canReview = r.Status == ReservationStatus.Completed && !x.HasReview && r.GuestId == currentUser.UserId &&
                             now - new DateTimeOffset(r.CheckOut.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero) <= Domain.Reviews.Review.ReviewWindow;
             return new ReservationDto(r.Id, r.PropertyId, x.Property.Title, x.Property.Image, x.Property.City, x.Property.Country,
                 r.GuestId, x.GuestName, r.HostId, x.HostName, r.CheckIn, r.CheckOut, r.Guests, r.Nights,
                 r.BaseAmount, r.CleaningFee, r.ServiceFee, r.Taxes, r.Discount, r.TotalAmount, r.Currency, r.Status.ToString(),
-                r.CancellationPolicy.ToString(), r.HoldExpiresAt, r.CreatedAt, r.RefundAmount, canCancel, canReview, x.HasReview);
+                r.CancellationPolicy.ToString(), r.HoldExpiresAt, r.CreatedAt, r.RefundAmount, canCancel, canReview, x.HasReview,
+                r.RequiresApproval, r.ApprovalDeadline, r.DeclineReason,
+                r.Status == ReservationStatus.AwaitingApproval && (r.HostId == currentUser.UserId || currentUser.IsInRole(Domain.Identity.Roles.Admin)));
         }).ToList();
     }
 }

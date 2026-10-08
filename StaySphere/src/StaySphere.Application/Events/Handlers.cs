@@ -21,7 +21,10 @@ public sealed class NotificationEventHandler(INotificationService notifications,
     IIntegrationEventHandler<ReservationCompletedEvent>,
     IIntegrationEventHandler<ReviewCreatedEvent>,
     IIntegrationEventHandler<MessageSentEvent>,
-    IIntegrationEventHandler<PropertyPublishedEvent>
+    IIntegrationEventHandler<PropertyPublishedEvent>,
+    IIntegrationEventHandler<ReservationRequestedEvent>,
+    IIntegrationEventHandler<ReservationDeclinedEvent>,
+    IIntegrationEventHandler<PayoutPaidEvent>
 {
     public Task HandleAsync(UserRegisteredEvent e, CancellationToken ct) =>
         notifications.NotifyAsync(e.UserId, "welcome", "Welcome to StaySphere", $"Hi {e.DisplayName}, start exploring stays around the world.", "/search", ct);
@@ -82,6 +85,26 @@ public sealed class NotificationEventHandler(INotificationService notifications,
         notifications.NotifyAsync(e.HostId, "host.property_published", "Your listing is live", "Guests can now find and book your place.",
             $"/property/{e.PropertyId}", ct);
 
+    public async Task HandleAsync(ReservationRequestedEvent e, CancellationToken ct)
+    {
+        var info = await InfoAsync(e.ReservationId, ct);
+        await notifications.NotifyAsync(e.HostId, "host.booking_request", "New booking request — please respond",
+            $"{info.Guest} wants to stay at {info.Title} for {info.Dates}. Accept or decline within 24 hours.", "/host/reservations?scope=requests", ct, email: true);
+        await notifications.NotifyAsync(e.GuestId, "reservation.requested", "Request sent to the host",
+            $"Your card is authorized but not charged. {info.Title} · {info.Dates}. The host has 24 hours to respond.", $"/trips/{e.ReservationId}", ct);
+    }
+
+    public async Task HandleAsync(ReservationDeclinedEvent e, CancellationToken ct)
+    {
+        var info = await InfoAsync(e.ReservationId, ct);
+        await notifications.NotifyAsync(e.GuestId, "reservation.declined", e.Expired ? "Your request expired" : "Your request was declined",
+            $"{info.Title} · {info.Dates}. You were not charged — the card authorization was released.", "/search", ct, email: true);
+    }
+
+    public Task HandleAsync(PayoutPaidEvent e, CancellationToken ct) =>
+        notifications.NotifyAsync(e.HostId, "host.payout_paid", "Payout sent",
+            $"We sent {Money(e.Amount, e.Currency)} to your payout account.", "/host/earnings", ct, email: true);
+
     private async Task<(string Title, string Dates, string Guest)> InfoAsync(Guid reservationId, CancellationToken ct)
     {
         var r = await db.Reservations.AsNoTracking().Where(x => x.Id == reservationId)
@@ -98,10 +121,11 @@ public sealed class NotificationEventHandler(INotificationService notifications,
 }
 
 /// <summary>Payments context reacting to cancellations: issues the refund computed by the cancellation policy.</summary>
-public sealed class RefundOnCancellationHandler(IPaymentService payments) : IIntegrationEventHandler<ReservationCancelledEvent>
+public sealed class RefundOnCancellationHandler(IPaymentService payments, Booking.IBookingRequestService requests) : IIntegrationEventHandler<ReservationCancelledEvent>
 {
     public async Task HandleAsync(ReservationCancelledEvent e, CancellationToken ct)
     {
+        await requests.VoidAuthorizationAsync(e.ReservationId, ct); // guest withdrew a pending request: release the card hold
         if (e.RefundAmount <= 0) return;
         var result = await payments.RefundForCancelledReservationAsync(e.ReservationId, ct);
         if (result.IsFailure) throw new InvalidOperationException($"Refund failed: {result.Error!.Message}"); // retried by the bus

@@ -37,6 +37,8 @@ public static class DependencyInjection
         services.AddScoped<IReservationService, ReservationService>();
         services.AddScoped<IBookingMaintenance, BookingMaintenance>();
         services.AddScoped<IPaymentService, PaymentService>();
+        services.AddScoped<IBookingRequestService, BookingRequestService>();
+        services.AddScoped<IPayoutService, PayoutService>();
         services.AddScoped<IReviewService, ReviewService>();
         services.AddScoped<IFavoriteService, FavoriteService>();
         services.AddScoped<IMessagingService, MessagingService>();
