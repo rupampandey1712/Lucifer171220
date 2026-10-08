@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\StaySphere.Domain\StaySphere.Domain.csproj" />
+    <ProjectReference Include="..\StaySphere.Contracts\StaySphere.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- EF Core core abstractions only (DbSet/IQueryable); no provider. See ADR-008. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="StaySphere.UnitTests" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,14 @@
+bin/
+obj/
+*.user
+.vs/
+.idea/
+.env
+TestResults/
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.log
+.data/
