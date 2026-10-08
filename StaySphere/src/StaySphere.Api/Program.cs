@@ -169,7 +169,13 @@ builder.Services.AddSwaggerGen(o =>
     o.AddSecurityRequirement(doc => new OpenApiSecurityRequirement { [new OpenApiSecuritySchemeReference("Bearer", doc)] = [] });
     var xml = Path.Combine(AppContext.BaseDirectory, "StaySphere.Api.xml");
     if (File.Exists(xml)) o.IncludeXmlComments(xml);
-    o.CustomSchemaIds(t => t.FullName!.Replace("StaySphere.Contracts.", string.Empty, StringComparison.Ordinal).Replace('+', '.'));
+    o.SupportNonNullableReferenceTypes();
+    o.NonNullableReferenceTypesAsRequired();
+    o.OperationFilter<SuccessResponseOperationFilter>();
+    o.CustomSchemaIds(SchemaId);
+    static string SchemaId(Type t) => t.IsGenericType
+        ? t.Name[..t.Name.IndexOf('`', StringComparison.Ordinal)] + "Of" + string.Join("And", t.GetGenericArguments().Select(a => SchemaId(a).Split('.').Last()))
+        : t.FullName!.Replace("StaySphere.Contracts.", string.Empty, StringComparison.Ordinal).Replace("StaySphere.Application.Abstractions.", string.Empty, StringComparison.Ordinal).Replace('+', '.');
 });
 
 builder.Services.Configure<ForwardedHeadersOptions>(o =>

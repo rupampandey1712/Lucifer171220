@@ -35,7 +35,7 @@ public interface IAdminService
     Task<Result> DeactivateCouponAsync(Guid id, CancellationToken ct);
 }
 
-public sealed class AdminService(IAppDbContext db, IAuditLogger audit, ICacheService cache, TimeProvider clock) : IAdminService
+public sealed class AdminService(IAppDbContext db, IAuditLogger audit, ICacheService cache, ICurrencyService currency, TimeProvider clock) : IAdminService
 {
     public async Task<AdminDashboardDto> DashboardAsync(CancellationToken ct)
     {
@@ -49,13 +49,21 @@ public sealed class AdminService(IAppDbContext db, IAuditLogger audit, ICacheSer
         var published = await db.Properties.CountAsync(p => p.Status == PropertyStatus.Published && p.DeletedAt == null, ct);
         var bookings = await db.Reservations.CountAsync(r => confirmedStatuses.Contains(r.Status), ct);
         var cancelled = await db.Reservations.CountAsync(r => r.Status == ReservationStatus.Cancelled || r.Status == ReservationStatus.Refunded || r.Status == ReservationStatus.RefundPending, ct);
-        var revenue = await db.LedgerEntries.Where(l => l.Account == LedgerAccount.PlatformFee).SumAsync(l => (decimal?)l.Amount, ct) ?? 0;
-        var refunds = -(await db.LedgerEntries.Where(l => l.Account == LedgerAccount.Refund).SumAsync(l => (decimal?)l.Amount, ct) ?? 0);
+        // Ledger amounts are in each listing's currency: convert to USD before aggregating.
+        var rates = await currency.GetRatesAsync("USD", ct);
+        decimal Usd(decimal amount, string cur) => rates.Rates.TryGetValue(cur.Trim(), out var r) && r > 0 ? amount / r : amount;
+        var feesByCurrency = await db.LedgerEntries.Where(l => l.Account == LedgerAccount.PlatformFee)
+            .GroupBy(l => l.Currency).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct);
+        var refundsByCurrency = await db.LedgerEntries.Where(l => l.Account == LedgerAccount.Refund)
+            .GroupBy(l => l.Currency).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct);
+        var revenue = decimal.Round(feesByCurrency.Sum(x => Usd(x.Sum, x.Key)), 2);
+        var refunds = decimal.Round(-refundsByCurrency.Sum(x => Usd(x.Sum, x.Key)), 2);
 
         var dailyBookings = await db.Reservations.Where(r => r.ConfirmedAt >= since)
             .GroupBy(r => r.ConfirmedAt!.Value.Date).Select(g => new { g.Key, Count = g.Count() }).ToListAsync(ct);
-        var dailyRevenue = await db.LedgerEntries.Where(l => l.Account == LedgerAccount.PlatformFee && l.OccurredAt >= since)
-            .GroupBy(l => l.OccurredAt.Date).Select(g => new { g.Key, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct);
+        var dailyRevenue = (await db.LedgerEntries.Where(l => l.Account == LedgerAccount.PlatformFee && l.OccurredAt >= since)
+                .GroupBy(l => new { l.OccurredAt.Date, l.Currency }).Select(g => new { g.Key.Date, g.Key.Currency, Sum = g.Sum(x => x.Amount) }).ToListAsync(ct))
+            .GroupBy(x => x.Date).Select(g => new { g.Key, Sum = decimal.Round(g.Sum(x => Usd(x.Sum, x.Currency)), 2) }).ToList();
         var newUsers = await db.Users.Where(u => u.CreatedAt >= since)
             .GroupBy(u => u.CreatedAt.Date).Select(g => new { g.Key, Count = g.Count() }).ToListAsync(ct);
         var newProps = await db.Properties.Where(p => p.CreatedAt >= since)
