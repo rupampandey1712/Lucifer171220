@@ -1,0 +1,10 @@
+# Overlay: route the API's events through the Service Bus emulator and let the Workers container consume them.
+#   docker compose -f docker-compose.yml -f docker-compose.servicebus.yml --profile servicebus up -d --build
+services:
+  api:
+    environment:
+      Messaging__Transport: ServiceBus
+      Messaging__ServiceBusConnectionString: Endpoint=sb://servicebus;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
+      Workers__Outbox: "false"
+      Workers__Consumers: "false"
+      Workers__Jobs: "false"

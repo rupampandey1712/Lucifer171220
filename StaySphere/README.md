@@ -1,49 +1,116 @@
 # StaySphere
 
-A production-grade accommodation marketplace (guests, hosts, admins, support) built as a
-**modular monolith** on ASP.NET Core + SQL Server + Redis + Azure Service Bus + Blob Storage,
-with a React/TypeScript SPA, SignalR real-time features and a tool-based AI assistant.
+A production-style accommodation marketplace. Guests search, book and pay. Hosts list homes and manage calendars and earnings. Admins and support staff run the platform. An AI travel assistant searches real listings and can prepare bookings, but it never books without your explicit confirmation.
 
-Runs fully locally (`docker compose up`) using Azure emulators; deploys to Azure via Bicep +
-GitHub Actions.
+| Layer | Tech |
+|---|---|
+| API | **.NET 10**, ASP.NET Core (controllers, versioned `/api/v1`), EF Core 10 + SQL Server, FluentValidation, SignalR, Serilog, OpenTelemetry, Swagger |
+| Architecture | Clean Architecture **modular monolith**: Domain → Application → Infrastructure → Api, plus a separate **Workers** host. Transactional **outbox** → **Azure Service Bus** (or in-memory) → idempotent consumers |
+| Data / infra | SQL Server, Redis (cache, SignalR backplane), Azure Blob Storage (Azurite locally), Mailpit, Aspire Dashboard (OTLP) |
+| AI | Microsoft Agent Framework (`ChatClientAgent`) on `Microsoft.Extensions.AI`, with **Ollama** locally. An offline rule-based agent is the default and the fallback |
+| Web | React 19, TypeScript, Vite, Tailwind CSS 4, TanStack Query, Zustand, React Hook Form + Zod, Leaflet/OpenStreetMap, Recharts, SignalR client. API types are **generated from OpenAPI** |
+| Delivery | Docker multi-stage images, Docker Compose, GitHub Actions, **Bicep** (Container Apps, Azure SQL, Redis, Service Bus, Storage, Key Vault, App Insights, Front Door + WAF) |
 
-> **Status: Design package — awaiting approval.**
-> Per the project brief (§129), no implementation code has been written yet. The documents
-> below describe what will be built. Implementation starts with Phase 1 once approved.
+> This is a portfolio project. All data is fake and no real payments are processed. The payment provider is a local simulator.
 
-## Design package
+## Quick start (everything in Docker)
 
-| # | Deliverable | Document |
-|---|-------------|----------|
-| 1–3 | System architecture, component diagram, module boundaries | [architecture/01-system-architecture.md](docs/architecture/01-system-architecture.md) |
-| 4 | Database ER diagram and table design | [database/er-model.md](docs/database/er-model.md) |
-| 5 | API inventory | [api/api-inventory.md](docs/api/api-inventory.md) |
-| 6–7 | Frontend page inventory, user journeys | [architecture/02-frontend-and-journeys.md](docs/architecture/02-frontend-and-journeys.md) |
-| 8–10 | Booking & payment sequences, Service Bus event map, outbox | [architecture/03-flows-and-events.md](docs/architecture/03-flows-and-events.md) |
-| 11 | Local Docker architecture | [deployment/local-development.md](docs/deployment/local-development.md) |
-| 12 | Azure production architecture | [deployment/azure-architecture.md](docs/deployment/azure-architecture.md) |
-| 13 | Repository structure | [architecture/04-repository-structure.md](docs/architecture/04-repository-structure.md) |
-| 14 | Security architecture & threat model | [architecture/05-security.md](docs/architecture/05-security.md) |
-| 15 | AI agent architecture | [architecture/06-ai-agents.md](docs/architecture/06-ai-agents.md) |
-| 16 | Testing strategy | [architecture/07-testing-strategy.md](docs/architecture/07-testing-strategy.md) |
-| 17 | CI/CD architecture | [deployment/cicd.md](docs/deployment/cicd.md) |
-| 18 | Development roadmap | [roadmap.md](docs/roadmap.md) |
-| — | Architecture Decision Records | [adr/](docs/adr/) |
+Requires Docker Desktop with about 6 GB of RAM.
 
-## Decisions that need your approval
+```bash
+cd StaySphere
+cp .env.example .env            # optional; the defaults work
+docker compose up -d --build    # first build takes a few minutes
+```
 
-These are the choices where the brief left room or where the ecosystem has moved. Each has a
-recommendation; see [roadmap.md § Open decisions](docs/roadmap.md#open-decisions-for-approval).
+| URL | What |
+|---|---|
+| http://localhost:5173 | **The app** |
+| http://localhost:8081/swagger | API docs (OpenAPI) |
+| http://localhost:8025 | Mailpit inbox (verification, booking and refund emails) |
+| http://localhost:18888 | Traces, metrics and logs (Aspire Dashboard) |
 
-1. **.NET 10 (LTS)** rather than .NET 8, whose support ends in November 2026.
-2. **No MediatR / FluentAssertions / Moq.** MediatR v12+ and FluentAssertions v8+ are now
-   commercially licensed. We'll use a small in-house command/query dispatcher (or the MIT-licensed
-   `Mediator` source generator), plus **Shouldly** and **NSubstitute**.
-3. **Official Azure Service Bus emulator** locally, behind an `IMessageBus` abstraction that also
-   has an in-memory implementation for tests and lightweight dev.
-4. **Microsoft Agent Framework + `Microsoft.Extensions.AI`** for agents, with Ollama as the
-   default local provider.
-5. **Auth tokens.** The access token is held only in memory in the SPA. The refresh token goes in
-   an HttpOnly, Secure, SameSite=Strict cookie scoped to `/api/v1/auth`.
-6. **Folder layout.** StaySphere lives in `StaySphere/` inside this repository, and CI workflows
-   go in the repository root `.github/workflows` with path filters.
+**Demo accounts.** Every account uses the password `Passw0rd!Demo`.
+
+| Account | Role |
+|---|---|
+| `guest@example.local` | Guest |
+| `host@example.local` | Host |
+| `admin@example.local` | Admin |
+| `support@example.local` | Support |
+
+There are also `host01..24@example.local` and `guest001..149@example.local`. The deterministic seed creates 120 listings in 24 cities and about 460 reservations with payments, a ledger and reviews.
+
+**Test cards** (enter them on the checkout page; they are turned into tokens in the browser):
+
+| Card | Result |
+|---|---|
+| `4242 4242 4242 4242` | Success |
+| `4000 0000 0000 0002` | Declined |
+| `4000 0000 0000 9995` | Insufficient funds |
+| `4000 0000 0000 0119` | Delayed; a webhook confirms it about 5 seconds later |
+| `4000 0000 0000 0259` | Success, with a duplicate webhook (tests idempotency) |
+
+### Optional profiles
+
+```bash
+# Azure Service Bus emulator + separate Workers container (the API only writes outbox rows)
+docker compose -f docker-compose.yml -f docker-compose.servicebus.yml --profile servicebus up -d
+
+# Local LLM for the assistant
+docker compose --profile ai up -d
+docker compose exec ollama ollama pull llama3.2      # any tool-calling model
+AI_PROVIDER=Ollama AI_MODEL=llama3.2 docker compose up -d api
+
+# Real public APIs (OpenStreetMap Nominatim, Open-Meteo, Frankfurter) instead of mocks
+EXTERNAL_SERVICES_MODE=Live docker compose up -d api
+```
+
+## Developing locally (hot reload)
+
+```bash
+cd StaySphere
+docker compose up -d sqlserver redis azurite mailpit aspire-dashboard   # dependencies only
+dotnet tool restore
+dotnet run --project src/StaySphere.Api        # http://localhost:8081; migrates and seeds in Development
+cd web/staysphere-web && npm ci && npm run dev # http://localhost:5173 (proxies /api and /hubs)
+```
+
+`appsettings.Development.json` points at `localhost` and uses in-memory messaging, local disk storage and SMTP to Mailpit. Override any setting with environment variables, for example `Messaging__Transport=ServiceBus`.
+
+## Tests
+
+| Suite | Command | What it proves |
+|---|---|---|
+| Unit (52) | `dotnet test tests/StaySphere.UnitTests` | Pricing, cancellation policies, reservation state machine, value objects, validators, PII redaction |
+| Architecture (6) | `dotnet test tests/StaySphere.ArchitectureTests` | Layer and module boundaries; controllers can't touch the DB; AI tools can't reach infrastructure |
+| Integration (23) | `dotnet test tests/StaySphere.IntegrationTests` | Real SQL Server via Testcontainers. **20 concurrent bookings → exactly one wins**; duplicate webhook → one capture; idempotent reservations; hold expiry; refunds through the event pipeline; authorization (403/404); review rules; AI confirmation gate |
+| Frontend (16) | `cd web/staysphere-web && npm test` | Components, API client (refresh single-flight, ProblemDetails), card tokenization |
+| E2E (8) | `npx playwright test` (stack running) | Log in → search → reserve → pay → confirmed; host dashboard; RBAC; mobile smoke |
+
+## Where things are
+
+```
+StaySphere/
+├── src/
+│   ├── StaySphere.Domain/          aggregates, value objects, domain events, pricing & cancellation rules
+│   ├── StaySphere.Contracts/       API DTOs and versioned integration events
+│   ├── StaySphere.Application/     use-case services, ports, validators, event handlers, AI toolbox
+│   ├── StaySphere.Infrastructure/  EF Core, outbox, Service Bus, Redis, Blob, email, payments, external APIs, seeder
+│   ├── StaySphere.Api/             controllers, SignalR hub, auth, rate limiting, idempotency, ProblemDetails
+│   └── StaySphere.Workers/         outbox publisher, consumers, scheduled jobs
+├── tests/                          unit, architecture, integration (Testcontainers)
+├── web/staysphere-web/             React SPA + Vitest + Playwright
+├── infrastructure/{docker,bicep}/  Dockerfiles, Service Bus emulator config, Azure IaC
+└── docs/                           architecture, API, database, deployment, security, AI, ADRs, roadmap
+```
+
+## Key design decisions
+- **No double booking.** Each reservation writes one row per night. A filtered unique index `(PropertyId, Night) WHERE IsActive = 1` makes overlapping holds impossible across any number of API instances. See [ADR-002](docs/adr/ADR-002-sql-server.md).
+- **The server owns money.** `PriceCalculator` computes every price. The quote is HMAC-signed and re-verified when the hold is created. Money uses `decimal` everywhere, and the ledger is append-only with compensating entries for refunds.
+- **Idempotency everywhere it matters.** An `Idempotency-Key` header protects reservations, payments, cancellations and refunds. The provider receives its own idempotency key. Webhooks are deduplicated by `(provider, eventId)` and checked with an HMAC signature plus a 5-minute replay window.
+- **Outbox + inbox.** Events are written in the same transaction as the state change and published afterwards. Consumers deduplicate per handler. See [ADR-004](docs/adr/ADR-004-service-bus.md).
+- **Auth.** Access JWTs last 15 minutes and are kept in memory. The refresh token lives in an HttpOnly, SameSite=Strict cookie that rotates on every use; reusing an old token revokes the whole token family. Accounts lock after 5 failed attempts, and rate limits apply per policy.
+- **AI safety.** Agents act only through tools that call application services as the signed-in user. PII is redacted before text reaches a model. Bookings become a server-side pending action that executes only after the user clicks Confirm. See [AI agents](docs/architecture/06-ai-agents.md).
+
+Full documentation: [docs/](docs/). Implementation notes and deviations from the original design: [ADR-008](docs/adr/ADR-008-implementation-notes.md).

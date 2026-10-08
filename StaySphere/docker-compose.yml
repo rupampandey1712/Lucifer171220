@@ -1,0 +1,115 @@
+# Local development stack: `docker compose up -d --build` then open http://localhost:5173
+#   API + Swagger: http://localhost:8081/swagger · Mailpit: http://localhost:8025 · Traces: http://localhost:18888
+# Profiles: --profile servicebus (Azure Service Bus emulator + separate Workers), --profile ai (Ollama)
+name: staysphere
+
+x-backend-env: &backend-env
+  ConnectionStrings__Sql: Server=sqlserver,1433;Database=StaySphere;User Id=sa;Password=${SQL_SA_PASSWORD:-StaySphere_Dev_P@ssw0rd};TrustServerCertificate=True;Encrypt=False
+  ConnectionStrings__Redis: redis:6379
+  Jwt__SigningKey: ${JWT_SIGNING_KEY:-dev-only-signing-key-change-me-0123456789abcdef}
+  Quotes__SigningKey: ${QUOTE_SIGNING_KEY:-dev-only-quote-key-change-me-0123456789abcdef}
+  Payments__Fake__WebhookSecret: ${PAYMENT_WEBHOOK_SECRET:-dev-only-webhook-secret}
+  Payments__Fake__WebhookUrl: http://api:8080/api/v1/payments/webhook/fake
+  Storage__Provider: Blob
+  Storage__ConnectionString: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+  Storage__PublicBaseUrl: http://localhost:10000/devstoreaccount1
+  Email__Provider: Smtp
+  Email__Host: mailpit
+  Email__Port: "1025"
+  ExternalServices__Mode: ${EXTERNAL_SERVICES_MODE:-Mock}
+  AI__Provider: ${AI_PROVIDER:-Rules}
+  AI__BaseUrl: http://ollama:11434
+  AI__Model: ${AI_MODEL:-}
+  App__PublicWebUrl: http://localhost:5173
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+  ASPNETCORE_ENVIRONMENT: Development
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SQL_SA_PASSWORD:-StaySphere_Dev_P@ssw0rd}
+    ports: ["1433:1433"]
+    volumes: [sql-data:/var/opt/mssql]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      retries: 12
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s, retries: 10 }
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    command: azurite-blob --blobHost 0.0.0.0 --loose --skipApiVersionCheck
+    ports: ["10000:10000"]
+    volumes: [azurite-data:/data]
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["8025:8025", "1025:1025"]
+
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:9.0
+    environment:
+      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    ports: ["18888:18888"]
+
+  api:
+    build: { context: ., dockerfile: infrastructure/docker/Dockerfile.backend, args: { PROJECT: StaySphere.Api } }
+    environment:
+      <<: *backend-env
+      Database__MigrateOnStartup: "true"
+      Database__Seed: "true"
+      Swagger__Enabled: "true"
+      Cors__Origins__0: http://localhost:5173
+    ports: ["8081:8080"]
+    depends_on:
+      sqlserver: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      azurite: { condition: service_started }
+
+  web:
+    build: { context: web/staysphere-web }
+    ports: ["5173:8080"]
+    depends_on: [api]
+
+  # ---------- profile: servicebus — Azure Service Bus emulator + separate Workers host ----------
+  servicebus-sql:
+    profiles: [servicebus]
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment: { ACCEPT_EULA: "Y", MSSQL_SA_PASSWORD: "${SQL_SA_PASSWORD:-StaySphere_Dev_P@ssw0rd}" }
+  servicebus:
+    profiles: [servicebus]
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
+    volumes: ["./infrastructure/docker/servicebus-config.json:/ServiceBus_Emulator/ConfigFiles/Config.json"]
+    environment:
+      SQL_SERVER: servicebus-sql
+      MSSQL_SA_PASSWORD: ${SQL_SA_PASSWORD:-StaySphere_Dev_P@ssw0rd}
+      ACCEPT_EULA: "Y"
+    ports: ["5672:5672"]
+    depends_on: [servicebus-sql]
+  workers:
+    profiles: [servicebus]
+    build: { context: ., dockerfile: infrastructure/docker/Dockerfile.backend, args: { PROJECT: StaySphere.Workers } }
+    environment:
+      <<: *backend-env
+      Messaging__Transport: ServiceBus
+      Messaging__ServiceBusConnectionString: Endpoint=sb://servicebus;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
+    depends_on: [api, servicebus]
+
+  # ---------- profile: ai — local LLM ----------
+  ollama:
+    profiles: [ai]
+    image: ollama/ollama:latest
+    ports: ["11434:11434"]
+    volumes: [ollama-data:/root/.ollama]
+
+volumes:
+  sql-data:
+  azurite-data:
+  ollama-data:

@@ -1,3 +1,4 @@
+using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using Azure.Storage.Blobs;
 using Microsoft.EntityFrameworkCore;
@@ -69,7 +70,10 @@ public static class DependencyInjection
         var storage = configuration.GetSection(StorageOptions.Section).Get<StorageOptions>() ?? new StorageOptions();
         if (storage.Provider.Equals("Blob", StringComparison.OrdinalIgnoreCase))
         {
-            services.AddSingleton(_ => new BlobServiceClient(storage.ConnectionString));
+            // Azure: Managed Identity via AccountUrl (no keys). Local: Azurite connection string.
+            services.AddSingleton(_ => string.IsNullOrWhiteSpace(storage.ConnectionString)
+                ? new BlobServiceClient(new Uri(storage.AccountUrl ?? throw new InvalidOperationException("Storage:AccountUrl or Storage:ConnectionString is required.")), new DefaultAzureCredential())
+                : new BlobServiceClient(storage.ConnectionString));
             services.AddSingleton<IFileStorageService, BlobFileStorageService>();
         }
         else
@@ -139,7 +143,9 @@ public static class DependencyInjection
 
         if (messaging.Transport.Equals("ServiceBus", StringComparison.OrdinalIgnoreCase))
         {
-            services.AddSingleton(_ => new ServiceBusClient(messaging.ServiceBusConnectionString));
+            services.AddSingleton(_ => string.IsNullOrWhiteSpace(messaging.ServiceBusConnectionString)
+                ? new ServiceBusClient(messaging.ServiceBusNamespace ?? throw new InvalidOperationException("Messaging:ServiceBusNamespace or connection string is required."), new DefaultAzureCredential())
+                : new ServiceBusClient(messaging.ServiceBusConnectionString));
             services.AddSingleton<IMessageBus, ServiceBusMessageBus>();
             if (workers.Consumers) services.AddHostedService<ServiceBusConsumer>();
         }

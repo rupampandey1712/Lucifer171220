@@ -1,0 +1,20 @@
+{
+  "UserConfig": {
+    "Namespaces": [
+      {
+        "Name": "sbemulatorns",
+        "Queues": [],
+        "Topics": [
+          {
+            "Name": "staysphere.events",
+            "Properties": { "DefaultMessageTimeToLive": "PT1H", "DuplicateDetectionHistoryTimeWindow": "PT20S", "RequiresDuplicateDetection": true },
+            "Subscriptions": [
+              { "Name": "staysphere-workers", "Properties": { "MaxDeliveryCount": 10, "LockDuration": "PT1M", "DeadLetteringOnMessageExpiration": true } }
+            ]
+          }
+        ]
+      }
+    ],
+    "Logging": { "Type": "File" }
+  }
+}

@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1
+# Multi-stage build for the API and Workers. Usage: --build-arg PROJECT=StaySphere.Api | StaySphere.Workers
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ARG PROJECT=StaySphere.Api
+WORKDIR /src
+COPY global.json Directory.Build.props Directory.Packages.props StaySphere.sln ./
+COPY src/StaySphere.Domain/*.csproj src/StaySphere.Domain/
+COPY src/StaySphere.Contracts/*.csproj src/StaySphere.Contracts/
+COPY src/StaySphere.Application/*.csproj src/StaySphere.Application/
+COPY src/StaySphere.Infrastructure/*.csproj src/StaySphere.Infrastructure/
+COPY src/StaySphere.Api/*.csproj src/StaySphere.Api/
+COPY src/StaySphere.Workers/*.csproj src/StaySphere.Workers/
+RUN dotnet restore src/${PROJECT}/${PROJECT}.csproj
+COPY src/ src/
+RUN dotnet publish src/${PROJECT}/${PROJECT}.csproj -c Release -o /app --no-restore /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+ARG PROJECT=StaySphere.Api
+ENV ASPNETCORE_URLS=http://+:8080 \
+    DOTNET_RUNNING_IN_CONTAINER=true \
+    APP_DLL=${PROJECT}.dll
+WORKDIR /app
+COPY --from=build /app .
+# Writable folder for local media storage (Storage:Provider=Local); Blob storage is used in Azure.
+RUN mkdir -p /app/.data/media && chown -R app:app /app/.data
+USER app
+EXPOSE 8080
+ENTRYPOINT ["sh", "-c", "exec dotnet $APP_DLL"]

@@ -19,6 +19,8 @@ public sealed class MessagingOptions
     /// <summary>InMemory (single process) or ServiceBus (Azure Service Bus / the official emulator).</summary>
     public string Transport { get; set; } = "InMemory";
     public string? ServiceBusConnectionString { get; set; }
+    /// <summary>Fully-qualified namespace (e.g. sb-staysphere-prod.servicebus.windows.net) for Managed Identity auth.</summary>
+    public string? ServiceBusNamespace { get; set; }
     public string TopicName { get; set; } = "staysphere.events";
     public string SubscriptionName { get; set; } = "staysphere-workers";
     public int OutboxBatchSize { get; set; } = 50;

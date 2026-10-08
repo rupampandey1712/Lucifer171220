@@ -1,5 +1,7 @@
 # 18. Development Roadmap
 
+> **Status (implemented):** phases 1–10 are delivered as a working vertical slice: backend, frontend, tests, Docker, CI/CD and Bicep. See the project [README](../README.md) for what is verified and [ADR-008](adr/ADR-008-implementation-notes.md) for deviations and remaining gaps.
+
 Each phase ends with the brief's §127 gate: the backend compiles with no warnings, unit,
 integration and frontend tests pass, lint passes, Docker builds, APIs and UI are manually
 verified, and docs are updated. **No phase starts on a red build.**

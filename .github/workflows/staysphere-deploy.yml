@@ -1,0 +1,65 @@
+name: StaySphere deploy (Azure)
+
+# Build once → push to ACR → migrate + deploy staging → smoke → manual approval → production.
+# Requires repository variables AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, ACR_NAME and GitHub
+# environments "staging" and "production" (with required reviewers). Uses OIDC — no stored cloud secrets.
+on:
+  workflow_dispatch:
+
+permissions: { id-token: write, contents: read }
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    outputs: { tag: ${{ steps.meta.outputs.tag }} }
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+      - uses: azure/login@v2
+        with: { client-id: '${{ vars.AZURE_CLIENT_ID }}', tenant-id: '${{ vars.AZURE_TENANT_ID }}', subscription-id: '${{ vars.AZURE_SUBSCRIPTION_ID }}' }
+      - working-directory: StaySphere
+        run: |
+          az acr login -n ${{ vars.ACR_NAME }}
+          for p in Api Workers; do
+            img=${{ vars.ACR_NAME }}.azurecr.io/staysphere-${p,,}:${{ steps.meta.outputs.tag }}
+            docker build -f infrastructure/docker/Dockerfile.backend --build-arg PROJECT=StaySphere.$p -t $img . && docker push $img
+          done
+      - name: Build EF migration bundle
+        working-directory: StaySphere
+        run: |
+          dotnet tool restore
+          dotnet ef migrations bundle --project src/StaySphere.Infrastructure --startup-project src/StaySphere.Infrastructure -o efbundle --self-contained -r linux-x64
+      - uses: actions/upload-artifact@v4
+        with: { name: efbundle, path: StaySphere/efbundle }
+
+  deploy-staging:
+    needs: build-push
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: efbundle }
+      - uses: azure/login@v2
+        with: { client-id: '${{ vars.AZURE_CLIENT_ID }}', tenant-id: '${{ vars.AZURE_TENANT_ID }}', subscription-id: '${{ vars.AZURE_SUBSCRIPTION_ID }}' }
+      - name: Infrastructure (Bicep)
+        run: az deployment sub create -l ${{ vars.AZURE_LOCATION || 'westeurope' }} -f StaySphere/infrastructure/bicep/main.bicep -p StaySphere/infrastructure/bicep/env/staging.bicepparam -p imageTag=${{ needs.build-push.outputs.tag }}
+      - name: Apply migrations (gated, expand-only)
+        run: chmod +x efbundle && ./efbundle --connection "${{ secrets.STAGING_SQL_MIGRATION_CONNECTION }}"
+      - name: Smoke test
+        run: curl -fsS "${{ vars.STAGING_API_URL }}/health/ready"
+
+  deploy-production:
+    needs: [build-push, deploy-staging]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: efbundle }
+      - uses: azure/login@v2
+        with: { client-id: '${{ vars.AZURE_CLIENT_ID }}', tenant-id: '${{ vars.AZURE_TENANT_ID }}', subscription-id: '${{ vars.AZURE_SUBSCRIPTION_ID }}' }
+      - run: az deployment sub create -l ${{ vars.AZURE_LOCATION || 'westeurope' }} -f StaySphere/infrastructure/bicep/main.bicep -p StaySphere/infrastructure/bicep/env/prod.bicepparam -p imageTag=${{ needs.build-push.outputs.tag }}
+      - run: chmod +x efbundle && ./efbundle --connection "${{ secrets.PROD_SQL_MIGRATION_CONNECTION }}"
+      - run: curl -fsS "${{ vars.PROD_API_URL }}/health/ready"

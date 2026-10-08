@@ -1,0 +1,62 @@
+name: StaySphere backend
+
+on:
+  push:
+    branches: [main]
+    paths: ['StaySphere/src/**', 'StaySphere/tests/**', 'StaySphere/*.props', 'StaySphere/*.sln', '.github/workflows/staysphere-backend.yml']
+  pull_request:
+    paths: ['StaySphere/src/**', 'StaySphere/tests/**', 'StaySphere/*.props', 'StaySphere/*.sln', '.github/workflows/staysphere-backend.yml']
+
+concurrency: { group: backend-${{ github.ref }}, cancel-in-progress: true }
+
+defaults: { run: { working-directory: StaySphere } }
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { global-json-file: StaySphere/global.json }
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ hashFiles('StaySphere/Directory.Packages.props') }}
+      - run: dotnet restore
+      - name: Build (warnings are errors)
+        run: dotnet build --no-restore -c Release
+      - name: Unit tests
+        run: dotnet test tests/StaySphere.UnitTests --no-build -c Release --collect:"XPlat Code Coverage" --logger trx
+      - name: Architecture tests
+        run: dotnet test tests/StaySphere.ArchitectureTests --no-build -c Release --logger trx
+      - name: Integration + API tests (Testcontainers SQL Server)
+        run: dotnet test tests/StaySphere.IntegrationTests --no-build -c Release --logger trx
+      - name: Migrations script is generatable (idempotent)
+        run: |
+          dotnet tool restore
+          dotnet ef migrations script --idempotent --project src/StaySphere.Infrastructure --startup-project src/StaySphere.Infrastructure -o artifacts/migrations.sql
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-test-results
+          path: |
+            StaySphere/**/TestResults/**
+            StaySphere/artifacts/migrations.sql
+
+  docker:
+    needs: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API and Workers images
+        working-directory: StaySphere
+        run: |
+          docker build -f infrastructure/docker/Dockerfile.backend --build-arg PROJECT=StaySphere.Api -t staysphere-api:${{ github.sha }} .
+          docker build -f infrastructure/docker/Dockerfile.backend --build-arg PROJECT=StaySphere.Workers -t staysphere-workers:${{ github.sha }} .
+      - name: Scan image (Trivy)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: staysphere-api:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '0'

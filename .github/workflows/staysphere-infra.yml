@@ -1,0 +1,22 @@
+name: StaySphere infrastructure
+
+on:
+  pull_request:
+    paths: ['StaySphere/infrastructure/bicep/**', '.github/workflows/staysphere-infra.yml']
+  push:
+    branches: [main]
+    paths: ['StaySphere/infrastructure/bicep/**']
+
+jobs:
+  bicep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Bicep
+        run: curl -sSL -o /usr/local/bin/bicep https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64 && chmod +x /usr/local/bin/bicep
+      - name: Build + lint
+        working-directory: StaySphere/infrastructure/bicep
+        run: |
+          bicep build main.bicep --stdout > /dev/null
+          bicep lint main.bicep
+          for f in env/*.bicepparam; do bicep build-params "$f" --stdout > /dev/null; done

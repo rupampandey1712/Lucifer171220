@@ -1,0 +1,26 @@
+name: StaySphere frontend
+
+on:
+  push:
+    branches: [main]
+    paths: ['StaySphere/web/**', '.github/workflows/staysphere-frontend.yml']
+  pull_request:
+    paths: ['StaySphere/web/**', '.github/workflows/staysphere-frontend.yml']
+
+concurrency: { group: frontend-${{ github.ref }}, cancel-in-progress: true }
+
+defaults: { run: { working-directory: StaySphere/web/staysphere-web } }
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: StaySphere/web/staysphere-web/package-lock.json }
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: docker build -t staysphere-web:${{ github.sha }} .

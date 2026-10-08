@@ -1,6 +1,6 @@
 # ADR-002: SQL Server as system of record; DB-enforced booking exclusivity
 
-- **Status:** Proposed
+- **Status:** Accepted (implemented)
 - **Context:** Reservations, payments and the ledger need ACID guarantees. Double booking must be impossible across N API instances.
 - **Decision:** Use SQL Server (Azure SQL in production) with EF Core. Booking exclusivity comes from a `ReservationNights(PropertyId, Night)` table with a **filtered unique index `WHERE IsActive = 1`**, written in the same transaction as the reservation. Aggregates use `rowversion` for optimistic concurrency. READ_COMMITTED_SNAPSHOT is on. The geography type serves map and radius search.
 - **Alternatives:** Distributed Redis locks (correctness depends on lock leases and fails open under partitions); SERIALIZABLE range checks (deadlock-prone, lower throughput); an exclusion constraint (PostgreSQL only).

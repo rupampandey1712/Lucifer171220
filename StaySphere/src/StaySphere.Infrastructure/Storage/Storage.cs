@@ -14,6 +14,8 @@ public sealed class StorageOptions
     /// <summary>Blob (Azure Blob Storage / Azurite) or Local (disk, served by the API at /media).</summary>
     public string Provider { get; set; } = "Local";
     public string? ConnectionString { get; set; }
+    /// <summary>e.g. https://ststaysphereprod.blob.core.windows.net — used with Managed Identity when no connection string is set.</summary>
+    public string? AccountUrl { get; set; }
     /// <summary>Public base URL for blobs (CDN / Front Door in Azure, Azurite URL locally).</summary>
     public string? PublicBaseUrl { get; set; }
     public string LocalPath { get; set; } = ".data/media";
