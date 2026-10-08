@@ -7,7 +7,9 @@ on:
   pull_request:
     paths: ['StaySphere/src/**', 'StaySphere/tests/**', 'StaySphere/*.props', 'StaySphere/*.sln', '.github/workflows/staysphere-backend.yml']
 
-concurrency: { group: backend-${{ github.ref }}, cancel-in-progress: true }
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
 
 defaults: { run: { working-directory: StaySphere } }
 
@@ -15,7 +17,7 @@ jobs:
   build-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-dotnet@v4
         with: { global-json-file: StaySphere/global.json }
       - uses: actions/cache@v4
@@ -47,7 +49,7 @@ jobs:
     needs: build-test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build API and Workers images
         working-directory: StaySphere
         run: |

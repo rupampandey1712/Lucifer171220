@@ -7,7 +7,9 @@ on:
   pull_request:
     paths: ['StaySphere/web/**', '.github/workflows/staysphere-frontend.yml']
 
-concurrency: { group: frontend-${{ github.ref }}, cancel-in-progress: true }
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: true
 
 defaults: { run: { working-directory: StaySphere/web/staysphere-web } }
 
@@ -15,9 +17,9 @@ jobs:
   build-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm, cache-dependency-path: StaySphere/web/staysphere-web/package-lock.json }
+        with: { node-version: 24, cache: npm, cache-dependency-path: StaySphere/web/staysphere-web/package-lock.json }
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck

@@ -11,9 +11,13 @@ jobs:
   bicep:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install Bicep
-        run: curl -sSL -o /usr/local/bin/bicep https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64 && chmod +x /usr/local/bin/bicep
+        run: |
+          mkdir -p "$HOME/.bicep"
+          curl -sSL -o "$HOME/.bicep/bicep" https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
+          chmod +x "$HOME/.bicep/bicep"
+          echo "$HOME/.bicep" >> "$GITHUB_PATH"
       - name: Build + lint
         working-directory: StaySphere/infrastructure/bicep
         run: |

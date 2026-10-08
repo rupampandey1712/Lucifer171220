@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Start full stack (docker compose)
         working-directory: StaySphere
         run: |
@@ -19,7 +19,7 @@ jobs:
           for i in $(seq 1 60); do curl -sf http://localhost:5173/api/v1/features && break; sleep 5; done
           sleep 15
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm, cache-dependency-path: StaySphere/web/staysphere-web/package-lock.json }
+        with: { node-version: 24, cache: npm, cache-dependency-path: StaySphere/web/staysphere-web/package-lock.json }
       - name: Playwright
         working-directory: StaySphere/web/staysphere-web
         run: |
