@@ -1,0 +1,3 @@
+{
+  "recommendations": ["ms-dotnettools.csdevkit", "dbaeumer.vscode-eslint", "bradlc.vscode-tailwindcss", "ms-mssql.mssql"]
+}

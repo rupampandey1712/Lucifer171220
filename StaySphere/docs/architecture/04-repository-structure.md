@@ -5,7 +5,7 @@ StaySphere/
 ├── StaySphere.sln
 ├── Directory.Build.props          # net10.0, Nullable, TreatWarningsAsErrors, analyzers
 ├── Directory.Packages.props       # central package management
-├── global.json  .editorconfig  .env.example  docker-compose.yml  docker-compose.infra-only.yml
+├── global.json  .editorconfig  .env.example  docker-compose.yml  docker-compose.servicebus.yml
 ├── src/
 │   ├── StaySphere.Domain/
 │   │   ├── Common/                # Entity, AggregateRoot, IDomainEvent, Result, Error, StronglyTypedId
@@ -39,7 +39,7 @@ StaySphere/
 ├── infrastructure/
 │   ├── bicep/ (see Azure doc)
 │   └── docker/ wiremock/mappings/  servicebus-emulator/config.json  sql/init.sql
-├── scripts/  dev-up.sh  dev-infra.sh  export-openapi.sh  seed.sh
+├── .vscode/  launch.json (API + browser debugging), tasks.json
 ├── docs/  architecture/ api/ database/ deployment/ adr/ roadmap.md
 └── (repository root) .github/workflows/  backend.yml  frontend.yml  infra.yml  deploy.yml  codeql.yml
 ```

@@ -30,6 +30,8 @@ docker compose up -d --build    # first build takes a few minutes
 | http://localhost:8025 | Mailpit inbox (verification, booking and refund emails) |
 | http://localhost:18888 | Traces, metrics and logs (Aspire Dashboard) |
 
+> **Listing photos** for the demo data load from `picsum.photos`. If your network blocks that host you'll see a green house placeholder instead. Photos you upload as a host are stored locally and always show.
+
 **Demo accounts.** Every account uses the password `Passw0rd!Demo`.
 
 | Account | Role |
@@ -67,6 +69,8 @@ EXTERNAL_SERVICES_MODE=Live docker compose up -d api
 ```
 
 ## Developing locally (hot reload)
+
+**Debugging with breakpoints** (VS Code, Visual Studio or Rider), from the first API call to the last, plus the architecture in simple terms: see **[docs/debugging-guide.md](docs/debugging-guide.md)**.
 
 ```bash
 cd StaySphere

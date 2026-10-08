@@ -44,17 +44,17 @@ flowchart TB
 - `docker compose up`: infrastructure + api + workers + web, in mock external mode.
 - `docker compose --profile ai up`: adds Ollama. Pull a model once with
   `docker compose exec ollama ollama pull <model>` and set `AI__Model`.
-- `docker compose -f docker-compose.yml -f docker-compose.infra-only.yml up`: dependencies
-  only, for running the API/web from an IDE with hot reload.
+- `docker compose up -d sqlserver redis azurite mailpit aspire-dashboard`: dependencies only, for
+  running the API/web from an IDE with breakpoints. See the [debugging guide](../debugging-guide.md).
 
-## Developer commands (planned)
+## Developer commands
 ```bash
 git clone <repo> && cd StaySphere
 cp .env.example .env            # dev-only fake secrets; .env is git-ignored
 docker compose up -d            # full stack
-# or IDE mode:
-./scripts/dev-infra.sh          # infra only
-dotnet restore && dotnet run --project src/StaySphere.Api   # auto-migrates + seeds in Development only
+# or IDE mode (breakpoints): see docs/debugging-guide.md
+docker compose up -d sqlserver redis azurite mailpit aspire-dashboard
+dotnet run --project src/StaySphere.Api   # auto-migrates + seeds in Development only
 cd web/staysphere-web && npm ci && npm run dev
 ```
 

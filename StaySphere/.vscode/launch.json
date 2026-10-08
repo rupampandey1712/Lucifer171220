@@ -1,0 +1,58 @@
+{
+  // Open the StaySphere/ folder in VS Code, then Run and Debug → "Full stack (API + browser)".
+  // Requires the C# Dev Kit (or C#) extension. Dependencies must be running: see docs/debugging-guide.md.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "API (.NET)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build: api",
+      "program": "${workspaceFolder}/src/StaySphere.Api/bin/Debug/net10.0/StaySphere.Api.dll",
+      "cwd": "${workspaceFolder}/src/StaySphere.Api",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:8081",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4317"
+      },
+      "justMyCode": true,
+      "stopAtEntry": false,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "API (.NET) – no background jobs",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build: api",
+      "program": "${workspaceFolder}/src/StaySphere.Api/bin/Debug/net10.0/StaySphere.Api.dll",
+      "cwd": "${workspaceFolder}/src/StaySphere.Api",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:8081",
+        "Workers__Jobs": "false"
+      },
+      "justMyCode": true,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Web (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "preLaunchTask": "web: dev server",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/web/staysphere-web"
+    },
+    {
+      "name": "Attach to running .NET process",
+      "type": "coreclr",
+      "request": "attach"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full stack (API + browser)",
+      "configurations": ["API (.NET)", "Web (Chrome)"],
+      "stopAll": true
+    }
+  ]
+}

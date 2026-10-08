@@ -57,7 +57,7 @@ services:
     image: mcr.microsoft.com/dotnet/aspire-dashboard:9.0
     environment:
       DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
-    ports: ["18888:18888"]
+    ports: ["18888:18888", "4317:18889"]   # UI + OTLP (lets an API run from your IDE send traces here)
 
   api:
     build: { context: ., dockerfile: infrastructure/docker/Dockerfile.backend, args: { PROJECT: StaySphere.Api } }
