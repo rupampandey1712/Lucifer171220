@@ -39,6 +39,8 @@ jobs:
           docker compose ps
           docker compose logs api > api.log
           tail -n 150 api.log
+          # Playwright's page snapshot at the moment of each failure (readable without downloading the artifact)
+          for f in web/staysphere-web/test-results/*/error-context.md; do [ -f "$f" ] && { echo "=== $f"; head -n 80 "$f"; }; done
       - uses: actions/upload-artifact@v4
         if: failure()
         with: { name: e2e-report, path: "StaySphere/web/staysphere-web/playwright-report\nStaySphere/api.log" }
