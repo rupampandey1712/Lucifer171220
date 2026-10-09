@@ -139,4 +139,4 @@ StaySphere/
 - **Host payouts.** Earnings become available 24 hours after check-in and are paid out daily per currency, or on demand with "Pay out now". Each payout writes negative `Payout` ledger entries in the same transaction as the payout row. A filtered unique index allows only one payout in flight per host, and a failed transfer is reversed with compensating entries. Only a masked IBAN is stored; in dev, an IBAN ending in `0000` simulates a failed transfer.
 - **AI safety.** Agents act only through tools that call application services as the signed-in user. PII is redacted before text reaches a model. Bookings become a server-side pending action that executes only after the user clicks Confirm. See [AI agents](docs/architecture/06-ai-agents.md).
 
-Full documentation: [docs/](docs/). Implementation notes and deviations from the original design: [ADR-008](docs/adr/ADR-008-implementation-notes.md).
+Full documentation: [docs/](docs/). Rewriting the back end in Python: [FastAPI port guide](docs/python-fastapi-port.md). Implementation notes and deviations from the original design: [ADR-008](docs/adr/ADR-008-implementation-notes.md).
