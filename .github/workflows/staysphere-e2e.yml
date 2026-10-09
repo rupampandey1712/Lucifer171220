@@ -16,8 +16,15 @@ jobs:
         working-directory: StaySphere
         run: |
           docker compose up -d --build
-          for i in $(seq 1 60); do curl -sf http://localhost:5173/api/v1/features && break; sleep 5; done
-          sleep 15
+          # Wait for the API (through the web container's proxy); fail with logs instead of testing a dead stack.
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:5173/api/v1/features; then echo; echo "API ready"; exit 0; fi
+            sleep 5
+          done
+          echo "::error::API did not become ready within 5 minutes"
+          docker compose ps
+          docker compose logs --tail 300 api
+          exit 1
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: npm, cache-dependency-path: StaySphere/web/staysphere-web/package-lock.json }
       - name: Playwright
@@ -28,7 +35,10 @@ jobs:
           npx playwright test
       - if: failure()
         working-directory: StaySphere
-        run: docker compose logs api > api.log
+        run: |
+          docker compose ps
+          docker compose logs api > api.log
+          tail -n 150 api.log
       - uses: actions/upload-artifact@v4
         if: failure()
         with: { name: e2e-report, path: "StaySphere/web/staysphere-web/playwright-report\nStaySphere/api.log" }
