@@ -47,6 +47,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             ["Email:Provider"] = "Log",
             ["Workers:Jobs"] = "false",
             ["RateLimiting:Multiplier"] = "1000",
+            ["AI:Provider"] = "Rules", // deterministic; never call a real model even if GEMINI_API_KEY is set on the machine
             ["Storage:LocalPath"] = Path.Combine(Path.GetTempPath(), "staysphere-tests-media"),
         };
         foreach (var (key, value) in settings) builder.UseSetting(key, value);

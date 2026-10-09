@@ -18,6 +18,12 @@ param sqlAdminGroupName string
 param enableFrontDoor bool = false
 @description('Origins allowed by CORS (the SPA URL).')
 param webOrigins array = []
+@description('AI assistant provider: Gemini (default), OpenAI (incl. Azure OpenAI) or Rules (offline).')
+param aiProvider string = 'Gemini'
+@description('Pinned model id for the AI provider. Empty = provider default.')
+param aiModel string = ''
+@description('True once the Key Vault secret "ai-api-key" exists. Without it the assistant runs the offline rule engine.')
+param aiApiKeyInKeyVault bool = false
 
 var name = 'staysphere-${environmentName}'
 var tags = { application: 'StaySphere', environment: environmentName }
@@ -42,6 +48,9 @@ module resources 'modules/resources.bicep' = {
     sqlAdminGroupName: sqlAdminGroupName
     enableFrontDoor: enableFrontDoor
     webOrigins: webOrigins
+    aiProvider: aiProvider
+    aiModel: aiModel
+    aiApiKeyInKeyVault: aiApiKeyInKeyVault
   }
 }
 

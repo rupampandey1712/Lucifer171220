@@ -95,16 +95,33 @@ public interface IAgentTool
 ## Configuration
 ```json
 "AI": {
-  "Provider": "Ollama",            // Ollama | AzureOpenAI | OpenAI | Scripted
-  "BaseUrl": "http://localhost:11434",
-  "Model": "",                     // required, no default baked in
+  "Provider": "Gemini",   // Gemini (default) | FoundryLocal | Ollama | OpenAI | Rules
+  "Model": "",            // empty = gemini-flash-latest for Gemini; required for the others
+  "BaseUrl": "",          // required for FoundryLocal (dynamic port), optional otherwise
+  "ApiKey": "",           // never in source control: user secrets, .env, or Key Vault ("ai-api-key")
   "MaxTurns": 20,
-  "DailyTokenBudgetPerUser": 50000
+  "TimeoutSeconds": 60
 }
 ```
-Env vars `AI__Provider`, `AI__BaseUrl` and `AI__Model` (equivalent to `AI_PROVIDER` etc. in
-`.env`). Tool-calling quality depends on the chosen local model. The README will list models
-verified with the scripted evaluation suite.
+Env vars `AI__Provider`, `AI__Model`, `AI__BaseUrl`, `AI__ApiKey` (`AI_PROVIDER` etc. in `.env`);
+Gemini also reads `GEMINI_API_KEY` / `GOOGLE_API_KEY`.
+
+How each provider is wired (`src/StaySphere.Infrastructure/Ai/AiChatClients.cs`). Everything above the
+`IChatClient` (agent, tools, confirmation gate, PII redaction) is identical for every provider.
+
+| Provider | Client |
+|---|---|
+| Gemini | Official Google Gen AI SDK (`Google.GenAI`), which implements `IChatClient` natively |
+| FoundryLocal, OpenAI | `OpenAI` SDK + `Microsoft.Extensions.AI.OpenAI` against any OpenAI-compatible `/v1` endpoint |
+| Ollama | `OllamaSharp` |
+
+`AiProviderSettings.Resolve` decides the effective provider at startup. If an LLM provider lacks what it needs
+(e.g. no Gemini key), the API logs a warning that says how to fix it, and the rule-based engine answers. At runtime
+any provider error (bad key, quota, timeout) also falls back to the rule engine for that message.
+
+Semantic Kernel was not needed: Agent Framework is its successor for agents and runs on the same
+`Microsoft.Extensions.AI` abstractions, which Google's SDK implements directly. Tool-calling quality depends on
+the model; small local models (Foundry Local, Ollama) may skip tools or call them incorrectly.
 
 ## Evaluation
 `StaySphere.UnitTests/Ai` uses a `ScriptedChatClient` to test tool routing, the confirmation gate,

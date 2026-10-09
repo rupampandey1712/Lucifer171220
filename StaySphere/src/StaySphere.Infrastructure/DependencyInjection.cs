@@ -7,7 +7,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
-using OllamaSharp;
 using StaySphere.Application.Abstractions;
 using StaySphere.Application.Ai;
 using StaySphere.Infrastructure.Ai;
@@ -164,16 +163,16 @@ public static class DependencyInjection
 
     private static void AddAi(IServiceCollection services, IConfiguration configuration)
     {
-        var ai = configuration.GetSection(AiOptions.Section).Get<AiOptions>() ?? new AiOptions();
-        if (ai.Provider.Equals("Ollama", StringComparison.OrdinalIgnoreCase))
-        {
-            if (string.IsNullOrWhiteSpace(ai.Model))
-                throw new InvalidOperationException("AI:Model must be configured when AI:Provider is Ollama (no model is hard-coded).");
-            services.TryAddSingleton<IChatClient>(_ => new ChatClientBuilder(new OllamaApiClient(new Uri(ai.BaseUrl), ai.Model))
-                .UseFunctionInvocation(configure: f => f.MaximumIterationsPerRequest = 8)
-                .Build());
-            services.AddScoped<IAssistantEngine, AgentFrameworkAssistantEngine>();
-        }
+        var options = configuration.GetSection(AiOptions.Section).Get<AiOptions>() ?? new AiOptions();
+        var ai = AiProviderSettings.Resolve(options, name => configuration[name]);
+        services.AddSingleton(ai);
+        services.AddHostedService<AiStartupReport>();
+        if (!ai.UsesAgent) return;
+
+        services.TryAddSingleton<IChatClient>(sp => new ChatClientBuilder(AiChatClients.Create(ai, options.TimeoutSeconds))
+            .UseFunctionInvocation(configure: f => f.MaximumIterationsPerRequest = 8)
+            .Build(sp));
+        services.AddScoped<IAssistantEngine, AgentFrameworkAssistantEngine>();
     }
 }
 

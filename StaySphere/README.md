@@ -7,7 +7,7 @@ A production-style accommodation marketplace. Guests search, book and pay. Hosts
 | API | **.NET 10**, ASP.NET Core (controllers, versioned `/api/v1`), EF Core 10 + SQL Server, FluentValidation, SignalR, Serilog, OpenTelemetry, Swagger |
 | Architecture | Clean Architecture **modular monolith**: Domain → Application → Infrastructure → Api, plus a separate **Workers** host. Transactional **outbox** → **Azure Service Bus** (or in-memory) → idempotent consumers |
 | Data / infra | SQL Server, Redis (cache, SignalR backplane), Azure Blob Storage (Azurite locally), Mailpit, Aspire Dashboard (OTLP) |
-| AI | Microsoft Agent Framework (`ChatClientAgent`) on `Microsoft.Extensions.AI`, with **Ollama** locally. An offline rule-based agent is the default and the fallback |
+| AI | Microsoft Agent Framework (`ChatClientAgent`) on `Microsoft.Extensions.AI`. **Gemini** by default (official `Google.GenAI` SDK); Foundry Local, Ollama or any OpenAI-compatible endpoint by configuration. An offline rule-based engine is the fallback |
 | Web | React 19, TypeScript, Vite, Tailwind CSS 4, TanStack Query, Zustand, React Hook Form + Zod, Leaflet/OpenStreetMap, Recharts, SignalR client. API types are **generated from OpenAPI** |
 | Delivery | Docker multi-stage images, Docker Compose, GitHub Actions, **Bicep** (Container Apps, Azure SQL, Redis, Service Bus, Storage, Key Vault, App Insights, Front Door + WAF) |
 
@@ -53,16 +53,36 @@ There are also `host01..24@example.local` and `guest001..149@example.local`. The
 | `4000 0000 0000 0119` | Delayed; a webhook confirms it about 5 seconds later |
 | `4000 0000 0000 0259` | Success, with a duplicate webhook (tests idempotency) |
 
+### AI assistant (Gemini by default)
+
+The "Ask AI" assistant is a Microsoft Agent Framework agent that searches real listings through tools and never books without your confirmation. It uses **Google Gemini** by default:
+
+1. Get a free API key at https://aistudio.google.com/apikey.
+2. Docker: put `GEMINI_API_KEY=...` in `StaySphere/.env` (git-ignored) and run `docker compose up -d api`.
+   Running the API from your IDE: `dotnet user-secrets set GEMINI_API_KEY ... --project src/StaySphere.Api`.
+
+Without a key the app still works: it logs a warning at startup and the offline rule-based assistant answers. Each reply shows which engine answered.
+
+| Provider | Settings (`.env` for Docker, user secrets or env vars for the IDE) |
+|---|---|
+| `Gemini` (default) | `GEMINI_API_KEY`; optional `AI_MODEL` to pin a version (default `gemini-flash-latest`) |
+| `FoundryLocal` | `AI_PROVIDER=FoundryLocal`, `AI_BASE_URL=http://localhost:<port>/v1` (from `foundry service status`; use `host.docker.internal` instead of `localhost` when the API runs in Docker), `AI_MODEL=<id from foundry model list>`. Pick a model that supports tool calling |
+| `Ollama` | `AI_PROVIDER=Ollama`, `AI_MODEL=llama3.2`, optional `AI_BASE_URL` |
+| `OpenAI` | `AI_PROVIDER=OpenAI`, `AI_API_KEY`, `AI_MODEL`, optional `AI_BASE_URL` (Azure OpenAI v1, LM Studio, vLLM…) |
+| `Rules` | Offline, no model |
+
+In `appsettings`/user secrets the same settings are `AI:Provider`, `AI:Model`, `AI:BaseUrl` and `AI:ApiKey`.
+
 ### Optional profiles
 
 ```bash
 # Azure Service Bus emulator + separate Workers container (the API only writes outbox rows)
 docker compose -f docker-compose.yml -f docker-compose.servicebus.yml --profile servicebus up -d
 
-# Local LLM for the assistant
+# Local LLM for the assistant (Ollama in Docker)
 docker compose --profile ai up -d
 docker compose exec ollama ollama pull llama3.2      # any tool-calling model
-AI_PROVIDER=Ollama AI_MODEL=llama3.2 docker compose up -d api
+AI_PROVIDER=Ollama AI_BASE_URL=http://ollama:11434 AI_MODEL=llama3.2 docker compose up -d api
 
 # Real public APIs (OpenStreetMap Nominatim, Open-Meteo, Frankfurter) instead of mocks
 EXTERNAL_SERVICES_MODE=Live docker compose up -d api
@@ -86,9 +106,9 @@ cd web/staysphere-web && npm ci && npm run dev # http://localhost:5173 (proxies 
 
 | Suite | Command | What it proves |
 |---|---|---|
-| Unit (63) | `dotnet test tests/StaySphere.UnitTests` | Pricing, cancellation policies, reservation state machine, value objects, validators, PII redaction, request-to-book and payout rules |
+| Unit (74) | `dotnet test tests/StaySphere.UnitTests` | Pricing, cancellation policies, reservation state machine, value objects, validators, PII redaction, request-to-book and payout rules, AI provider selection |
 | Architecture (6) | `dotnet test tests/StaySphere.ArchitectureTests` | Layer and module boundaries; controllers can't touch the DB; AI tools can't reach infrastructure |
-| Integration (30) | `dotnet test tests/StaySphere.IntegrationTests` | Real SQL Server via Testcontainers. **20 concurrent bookings → exactly one wins**; duplicate webhook → one capture; idempotent reservations; hold expiry; refunds through the event pipeline; authorization (403/404); review rules; AI confirmation gate; host accept (capture) / decline (void) / expiry; **concurrent payout requests → exactly one payout**; failed transfers reversed in the ledger |
+| Integration (32) | `dotnet test tests/StaySphere.IntegrationTests` | Real SQL Server via Testcontainers. **20 concurrent bookings → exactly one wins**; duplicate webhook → one capture; idempotent reservations; hold expiry; refunds through the event pipeline; authorization (403/404); review rules; AI confirmation gate; host accept (capture) / decline (void) / expiry; **concurrent payout requests → exactly one payout**; failed transfers reversed in the ledger; the Agent Framework agent calling real tools through the Gemini SDK and an OpenAI-compatible (Foundry Local) client against stub models |
 | Frontend (16) | `cd web/staysphere-web && npm test` | Components, API client (refresh single-flight, ProblemDetails), card tokenization |
 | E2E (9) | `npx playwright test` (stack running) | Log in → search → reserve → pay → confirmed; host dashboard; host accepts a booking request and sees payouts; RBAC; mobile smoke |
 

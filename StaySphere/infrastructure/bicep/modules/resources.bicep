@@ -10,6 +10,9 @@ param sqlAdminGroupObjectId string
 param sqlAdminGroupName string
 param enableFrontDoor bool
 param webOrigins array
+param aiProvider string
+param aiModel string
+param aiApiKeyInKeyVault bool
 
 var compact = replace(name, '-', '')
 var isPremium = skuTier == 'Premium'
@@ -199,7 +202,7 @@ resource containerEnv 'Microsoft.App/managedEnvironments@2024-03-01' = {
 }
 
 var sqlConnection = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Database=${sqlDb.name};Authentication=Active Directory Managed Identity;User Id=${identity.properties.clientId};Encrypt=True'
-var commonEnv = [
+var commonEnv = concat([
   { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
   { name: 'AZURE_CLIENT_ID', value: identity.properties.clientId }
   { name: 'ConnectionStrings__Sql', value: sqlConnection }
@@ -213,12 +216,14 @@ var commonEnv = [
   { name: 'Jwt__SigningKey', secretRef: 'jwt-signing-key' }
   { name: 'Quotes__SigningKey', secretRef: 'quote-signing-key' }
   { name: 'Payments__Fake__WebhookSecret', secretRef: 'payment-webhook-secret' }
-]
-var secrets = [
+  { name: 'AI__Provider', value: aiProvider }
+  { name: 'AI__Model', value: aiModel }
+], aiApiKeyInKeyVault ? [{ name: 'AI__ApiKey', secretRef: 'ai-api-key' }] : [])
+var secrets = concat([
   { name: 'jwt-signing-key', keyVaultUrl: '${keyVault.properties.vaultUri}secrets/jwt-signing-key', identity: identity.id }
   { name: 'quote-signing-key', keyVaultUrl: '${keyVault.properties.vaultUri}secrets/quote-signing-key', identity: identity.id }
   { name: 'payment-webhook-secret', keyVaultUrl: '${keyVault.properties.vaultUri}secrets/payment-webhook-secret', identity: identity.id }
-]
+], aiApiKeyInKeyVault ? [{ name: 'ai-api-key', keyVaultUrl: '${keyVault.properties.vaultUri}secrets/ai-api-key', identity: identity.id }] : [])
 
 resource api 'Microsoft.App/containerApps@2024-03-01' = {
   name: 'ca-${name}-api'

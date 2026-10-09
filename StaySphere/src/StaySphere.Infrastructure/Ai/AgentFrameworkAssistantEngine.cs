@@ -8,10 +8,11 @@ namespace StaySphere.Infrastructure.Ai;
 
 /// <summary>
 /// LLM-backed agent built on Microsoft Agent Framework (<see cref="ChatClientAgent"/>) over Microsoft.Extensions.AI's
-/// <see cref="IChatClient"/> — Ollama locally, any OpenAI-compatible endpoint by configuration. The agent's ONLY
+/// <see cref="IChatClient"/> — Gemini by default; Foundry Local, Ollama or any OpenAI-compatible endpoint by configuration. The agent's ONLY
 /// capabilities are the toolbox functions, which run as the current user through the Application layer.
 /// </summary>
-public sealed class AgentFrameworkAssistantEngine(IChatClient chatClient, IOptions<AiOptions> options, ILoggerFactory loggerFactory) : IAssistantEngine
+public sealed class AgentFrameworkAssistantEngine(
+    IChatClient chatClient, AiProviderSettings settings, IOptions<AiOptions> options, ILoggerFactory loggerFactory) : IAssistantEngine
 {
     private const string Instructions = """
         You are StaySphere's travel assistant (TravelAssistantAgent). Help guests find and compare stays.
@@ -25,7 +26,7 @@ public sealed class AgentFrameworkAssistantEngine(IChatClient chatClient, IOptio
         - Be concise and friendly. Recommend at most 3 places and say why each fits.
         """;
 
-    public string Name => options.Value.Provider;
+    public string Name => settings.Provider;
 
     public async Task<string> RunAsync(AssistantMemory memory, string userMessage, AssistantToolbox toolbox, CancellationToken ct)
     {

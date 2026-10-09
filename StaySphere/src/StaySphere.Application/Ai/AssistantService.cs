@@ -18,14 +18,92 @@ namespace StaySphere.Application.Ai;
 public sealed class AiOptions
 {
     public const string Section = "AI";
-    /// <summary>Rules (offline, deterministic) | Ollama | OpenAI (any OpenAI-compatible endpoint, incl. Azure OpenAI).</summary>
-    public string Provider { get; set; } = "Rules";
-    public string BaseUrl { get; set; } = "http://localhost:11434";
-    public string Model { get; set; } = string.Empty;
+    /// <summary>
+    /// Gemini (default) | FoundryLocal | Ollama | OpenAI (any OpenAI-compatible endpoint, incl. Azure OpenAI) | Rules
+    /// (offline, deterministic). LLM providers run the Microsoft Agent Framework agent; Rules is also the fallback.
+    /// </summary>
+    public string Provider { get; set; } = AiProviders.Gemini;
+    /// <summary>Optional for Gemini/OpenAI/Ollama (provider default), required for FoundryLocal (its port is dynamic).</summary>
+    public string? BaseUrl { get; set; }
+    /// <summary>Empty = provider default (Gemini only); required for the other LLM providers.</summary>
+    public string? Model { get; set; }
+    /// <summary>Never commit this. Falls back to the GEMINI_API_KEY / GOOGLE_API_KEY / OPENAI_API_KEY environment variables.</summary>
     public string? ApiKey { get; set; }
     public int MaxTurns { get; set; } = 20;
     public int MaxMessageLength { get; set; } = 1000;
     public int TimeoutSeconds { get; set; } = 60;
+}
+
+public static class AiProviders
+{
+    public const string Gemini = "Gemini";
+    public const string FoundryLocal = "FoundryLocal";
+    public const string Ollama = "Ollama";
+    public const string OpenAI = "OpenAI";
+    public const string Rules = "Rules";
+
+    /// <summary>Alias that always points at Google's current Flash model. Pin a specific id with AI:Model for production.</summary>
+    public const string DefaultGeminiModel = "gemini-flash-latest";
+}
+
+/// <summary>
+/// The effective AI configuration. <see cref="UsesAgent"/> is false when the provider is Rules or when an LLM provider is
+/// missing something it needs (e.g. no API key); the assistant then answers with the rule engine and
+/// <see cref="DisabledReason"/> says how to enable the agent.
+/// </summary>
+public sealed record AiProviderSettings(string Provider, string? Model, Uri? BaseUrl, string? ApiKey, string? DisabledReason)
+{
+    public bool UsesAgent => DisabledReason is null && Provider != AiProviders.Rules;
+
+    public static AiProviderSettings Resolve(AiOptions options, Func<string, string?> environment)
+    {
+        var provider = options.Provider.Trim();
+        var model = Blank(options.Model);
+        var key = Blank(options.ApiKey);
+        var baseUrl = Blank(options.BaseUrl);
+        Uri? url = null;
+        if (baseUrl is not null && (!Uri.TryCreate(baseUrl, UriKind.Absolute, out url) || (url.Scheme != Uri.UriSchemeHttp && url.Scheme != Uri.UriSchemeHttps)))
+            throw new InvalidOperationException($"AI:BaseUrl '{baseUrl}' must be an absolute http(s) URL.");
+
+        AiProviderSettings Disabled(string name, string reason) => new(name, model, url, null, reason);
+
+        if (provider.Equals(AiProviders.Rules, StringComparison.OrdinalIgnoreCase))
+            return new(AiProviders.Rules, null, null, null, null);
+
+        if (provider.Equals(AiProviders.Gemini, StringComparison.OrdinalIgnoreCase))
+        {
+            key ??= Blank(environment("GEMINI_API_KEY")) ?? Blank(environment("GOOGLE_API_KEY"));
+            return key is null
+                ? Disabled(AiProviders.Gemini, "No Gemini API key. Set GEMINI_API_KEY (or AI:ApiKey in user secrets); get one at https://aistudio.google.com/apikey.")
+                : new(AiProviders.Gemini, model ?? AiProviders.DefaultGeminiModel, url, key, null);
+        }
+
+        if (provider.Equals(AiProviders.FoundryLocal, StringComparison.OrdinalIgnoreCase))
+        {
+            if (url is null) return Disabled(AiProviders.FoundryLocal, "Set AI:BaseUrl to Foundry Local's endpoint, e.g. http://localhost:5273/v1 (run `foundry service status` for the port).");
+            if (model is null) return Disabled(AiProviders.FoundryLocal, "Set AI:Model to a loaded Foundry Local model id (run `foundry model list`).");
+            return new(AiProviders.FoundryLocal, model, url, key ?? "foundry-local", null);
+        }
+
+        if (provider.Equals(AiProviders.Ollama, StringComparison.OrdinalIgnoreCase))
+        {
+            if (model is null) return Disabled(AiProviders.Ollama, "Set AI:Model to a pulled Ollama model that supports tool calling, e.g. llama3.2.");
+            return new(AiProviders.Ollama, model, url ?? new Uri("http://localhost:11434"), null, null);
+        }
+
+        if (provider.Equals(AiProviders.OpenAI, StringComparison.OrdinalIgnoreCase))
+        {
+            key ??= Blank(environment("OPENAI_API_KEY"));
+            if (model is null) return Disabled(AiProviders.OpenAI, "Set AI:Model.");
+            if (key is null) return Disabled(AiProviders.OpenAI, "Set AI:ApiKey or OPENAI_API_KEY.");
+            return new(AiProviders.OpenAI, model, url, key, null);
+        }
+
+        throw new InvalidOperationException(
+            $"Unknown AI:Provider '{options.Provider}'. Use Gemini, FoundryLocal, Ollama, OpenAI or Rules.");
+    }
+
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
 
 public sealed record AssistantTurn(string Role, string Content);
