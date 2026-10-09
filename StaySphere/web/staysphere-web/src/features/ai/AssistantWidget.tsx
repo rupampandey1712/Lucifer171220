@@ -24,7 +24,7 @@ export function AssistantWidget() {
   const [turns, setTurns] = useState<Turn[]>([{ role: 'assistant', text: "Hi! I'm your StaySphere travel assistant. Tell me where you're going, your dates, group size and budget — I'll search real listings for you." }]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
-  useEffect(() => bottom.current?.scrollIntoView({ behavior: 'smooth' }), [turns]);
+  useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }); }, [turns]);
 
   const send = useMutation({
     mutationFn: (message: string) => api<AssistantReply>('/ai/messages', { method: 'POST', body: { conversationId, message }, timeoutMs: 90000 }),

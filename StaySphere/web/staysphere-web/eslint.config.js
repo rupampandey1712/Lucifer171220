@@ -14,6 +14,12 @@ export default tseslint.config(
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      // An expression-bodied effect returns its value to React as the cleanup. Browsers now return Promises from
+      // scrollTo/scrollIntoView, which crashed the app on unmount. Effects must use a block body (or return a cleanup arrow).
+      'no-restricted-syntax': ['error', {
+        selector: "CallExpression[callee.name=/^use(Layout|Insertion)?Effect$/] > ArrowFunctionExpression[expression=true]:not([body.type='ArrowFunctionExpression'])",
+        message: 'Use a block body in effects: `useEffect(() => { doThing(); }, deps)`. Returned values become the cleanup.',
+      }],
     },
   },
 );

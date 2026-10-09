@@ -131,7 +131,8 @@ export function Footer() {
 export function RootLayout() {
   useRealtime();
   const location = useLocation();
-  useEffect(() => window.scrollTo(0, 0), [location.pathname]);
+  // Block body: newer browsers make scroll methods return a Promise, which React would treat as a cleanup function.
+  useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
   return (
     <div className="flex min-h-screen flex-col">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[999] focus:rounded focus:bg-white focus:p-2">Skip to content</a>

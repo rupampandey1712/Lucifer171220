@@ -195,7 +195,7 @@ export function VerifyEmailPage() {
   const [params] = useSearchParams();
   const verify = useMutation({ mutationFn: () => api('/auth/verify-email', { method: 'POST', body: { userId: params.get('userId'), token: params.get('token') } }) });
   const { mutate } = verify;
-  useEffect(() => mutate(), [mutate]);
+  useEffect(() => { mutate(); }, [mutate]);
   return (
     <AuthShell title="Email verification">
       {verify.isPending && <div className="flex justify-center"><Spinner className="h-8 w-8" /></div>}

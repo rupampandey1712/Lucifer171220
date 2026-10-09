@@ -76,7 +76,7 @@ function Chat({ conversationId, conversation }: { conversationId: string; conver
     return () => { offTyping(); offRead(); offMsg(); };
   }, [conversationId, qc, me]);
 
-  useEffect(() => bottom.current?.scrollIntoView({ behavior: 'smooth' }), [messages.data?.items.length, typing]);
+  useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.data?.items.length, typing]);
 
   const send = useMutation({
     mutationFn: (body: string) => api<MessageDto>(`/conversations/${conversationId}/messages`, { method: 'POST', body: { body } }),
