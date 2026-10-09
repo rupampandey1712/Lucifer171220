@@ -206,11 +206,11 @@ public sealed class DevDataSeeder(AppDbContext db, IPasswordHasher hasher, TimeP
                 var payment = Payment.Start(r.Id, guest.Id, r.TotalAmount, r.Currency, "fake", $"seed-{r.Id:N}", "4242", bookedAt.AddMinutes(2));
                 if (r.RequiresApproval)
                 {
-                    payment.MarkAuthorized("pi_seed_" + r.Id.ToString("N")[..16], bookedAt.AddMinutes(3));
+                    payment.MarkAuthorized("pi_seed_" + r.Id.ToString("N"), bookedAt.AddMinutes(3));
                     r.AwaitApproval(bookedAt.AddMinutes(3));
                 }
 
-                payment.MarkSucceeded("pi_seed_" + r.Id.ToString("N")[..16], bookedAt.AddMinutes(4));
+                payment.MarkSucceeded("pi_seed_" + r.Id.ToString("N"), bookedAt.AddMinutes(4));
                 r.Confirm(bookedAt.AddMinutes(4));
                 db.LedgerEntries.AddRange(StaySphere.Application.Payments.Ledger.ForConfirmation(r, bookedAt.AddMinutes(4)));
 
@@ -257,7 +257,7 @@ public sealed class DevDataSeeder(AppDbContext db, IPasswordHasher hasher, TimeP
             var r = Reservation.Hold(requestListing, guest.Id, stay, 2, price, null, requestedAt).Value;
             r.MarkPaymentPending(requestedAt.AddMinutes(1));
             var payment = Payment.Start(r.Id, guest.Id, r.TotalAmount, r.Currency, "fake", $"seed-req-{r.Id:N}", "4242", requestedAt.AddMinutes(1));
-            payment.MarkAuthorized("pi_seed_req_" + r.Id.ToString("N")[..12], requestedAt.AddMinutes(2));
+            payment.MarkAuthorized("pi_seed_req_" + r.Id.ToString("N"), requestedAt.AddMinutes(2));
             r.AwaitApproval(requestedAt.AddMinutes(2));
             r.ClearDomainEvents();
             payment.ClearDomainEvents();
