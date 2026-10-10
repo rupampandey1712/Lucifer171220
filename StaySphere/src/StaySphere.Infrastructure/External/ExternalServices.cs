@@ -162,7 +162,9 @@ public sealed class FrankfurterCurrencyService(HttpClient http, ICacheService ca
 {
     public async Task<ExchangeRates> GetRatesAsync(string baseCurrency, CancellationToken cancellationToken)
     {
-        var b = baseCurrency.ToUpperInvariant();
+        var b = baseCurrency.Trim().ToUpperInvariant();
+        // Only ISO-4217-shaped codes reach the URL and the cache key (no query injection, no unbounded cache keys).
+        if (b.Length != 3 || !b.All(char.IsAsciiLetterUpper)) return await fallback.GetRatesAsync("USD", cancellationToken);
         return await cache.GetOrCreateAsync($"fx:{b}", TimeSpan.FromHours(6), async ct =>
         {
             try

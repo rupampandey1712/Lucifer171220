@@ -53,6 +53,22 @@ There are also `host01..24@example.local` and `guest001..149@example.local`. The
 | `4000 0000 0000 0119` | Delayed; a webhook confirms it about 5 seconds later |
 | `4000 0000 0000 0259` | Success, with a duplicate webhook (tests idempotency) |
 
+### Local vs Azure (no Azure subscription needed)
+
+Everything runs locally with emulators or in-process stand-ins. The Azure resources in `infrastructure/bicep` are only for a real deployment.
+
+| In Azure | `docker compose up` | API from your IDE |
+|---|---|---|
+| Azure SQL | SQL Server 2022 container | Same container |
+| Blob Storage (photos) | **Azurite** | Local folder (`.data/media`) |
+| Azure Cache for Redis | Redis container | In-memory cache |
+| Service Bus | In-memory bus inside the API (the **Service Bus emulator** with `--profile servicebus`) | In-memory bus |
+| Email (Azure Communication Services) | **Mailpit** (http://localhost:8025) | Mailpit |
+| Application Insights | **Aspire Dashboard** (http://localhost:18888) | Aspire Dashboard |
+| Key Vault | `.env` file | .NET user secrets |
+| Payment provider | Built-in fake provider (test cards below) | Same |
+| Azure OpenAI | Gemini (free key) or offline rules; Foundry Local / Ollama optional | Same |
+
 ### AI assistant (Gemini by default)
 
 The "Ask AI" assistant is a Microsoft Agent Framework agent that searches real listings through tools and never books without your confirmation. It uses **Google Gemini** by default:
@@ -137,6 +153,7 @@ StaySphere/
 - **Auth.** Access JWTs last 15 minutes and are kept in memory. The refresh token lives in an HttpOnly, SameSite=Strict cookie that rotates on every use; reusing an old token revokes the whole token family. Accounts lock after 5 failed attempts, and rate limits apply per policy.
 - **Request-to-book.** Listings with Instant Book off take requests. The guest's card is *authorized* (not charged) and the dates are blocked. The host has 24 hours to accept, which captures the payment and confirms the stay, or decline, which voids the authorization and frees the dates. Unanswered requests expire automatically, and a guest can withdraw at any time.
 - **Host payouts.** Earnings become available 24 hours after check-in and are paid out daily per currency, or on demand with "Pay out now". Each payout writes negative `Payout` ledger entries in the same transaction as the payout row. A filtered unique index allows only one payout in flight per host, and a failed transfer is reversed with compensating entries. Only a masked IBAN is stored; in dev, an IBAN ending in `0000` simulates a failed transfer.
+- **Web security.** SQL is only ever issued through EF Core LINQ or parameterised commands, so user input can't change a query. React escapes all rendered text and the app never injects raw HTML; email templates HTML-encode user content. A Content-Security-Policy and the usual security headers are set. The access token is sent as a bearer header, so ordinary API calls aren't exposed to CSRF; the two cookie-based endpoints (refresh, logout) need `SameSite=Strict` *and* a custom header that cross-site pages can't send. Uploads are checked by content, re-encoded and size-limited; redirects only go to same-site paths.
 - **AI safety.** Agents act only through tools that call application services as the signed-in user. PII is redacted before text reaches a model. Bookings become a server-side pending action that executes only after the user clicks Confirm. See [AI agents](docs/architecture/06-ai-agents.md).
 
 Full documentation: [docs/](docs/). Rewriting the back end in Python: [FastAPI port guide](docs/python-fastapi-port.md). Implementation notes and deviations from the original design: [ADR-008](docs/adr/ADR-008-implementation-notes.md).
