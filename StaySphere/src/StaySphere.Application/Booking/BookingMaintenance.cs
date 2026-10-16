@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using StaySphere.Application.Abstractions;
@@ -15,6 +16,8 @@ public interface IBookingMaintenance
     Task<int> ExpireHoldsAsync(CancellationToken ct);
     Task<int> CompleteFinishedStaysAsync(CancellationToken ct);
     Task<int> SendCheckInRemindersAsync(CancellationToken ct);
+    /// <summary>Nudges guests to review completed stays: the day after checkout, and a week before the review window closes.</summary>
+    Task<int> SendReviewRemindersAsync(CancellationToken ct);
     Task<int> CleanupAsync(CancellationToken ct);
 }
 
@@ -104,6 +107,44 @@ public sealed class BookingMaintenance(
             sent++;
         }
 
+        return sent;
+    }
+
+    public async Task<int> SendReviewRemindersAsync(CancellationToken ct)
+    {
+        var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
+        var windowDays = (int)Domain.Reviews.Review.ReviewWindow.TotalDays;
+        // (checkout date, notification type, message). Each is sent at most once per stay (deduplicated by type + link).
+        // The first nudge normally comes from the ReservationCompleted event with the same type and link; this round only
+        // catches up if that event was lost.
+        var rounds = new[]
+        {
+            (Checkout: today.AddDays(-1), Type: "review.reminder", Title: "How was your stay?",
+                Body: "Tell other guests about {0} — reviewing takes two minutes."),
+            (Checkout: today.AddDays(-(windowDays - 7)), Type: "review.reminder.final", Title: "Last week to review your stay",
+                Body: "You have 7 days left to review {0}."),
+        };
+
+        var sent = 0;
+        foreach (var round in rounds)
+        {
+            // Completed stays with no review yet; checkout on the round's day (a missed day is caught by the next run's range).
+            var due = await db.Reservations.AsNoTracking()
+                .Where(r => r.Status == ReservationStatus.Completed && r.CheckOut <= round.Checkout && r.CheckOut > round.Checkout.AddDays(-3)
+                            && !db.Reviews.Any(v => v.ReservationId == r.Id))
+                .Select(r => new { r.Id, r.GuestId, Title = db.Properties.Where(p => p.Id == r.PropertyId).Select(p => p.Title).First() })
+                .Take(200).ToListAsync(ct);
+
+            foreach (var r in due)
+            {
+                var link = $"/trips/{r.Id}";
+                if (await db.Notifications.AnyAsync(n => n.UserId == r.GuestId && n.Type == round.Type && n.Link == link, ct)) continue;
+                await notifications.NotifyAsync(r.GuestId, round.Type, round.Title, string.Format(CultureInfo.InvariantCulture, round.Body, r.Title), link, ct, email: true);
+                sent++;
+            }
+        }
+
+        if (sent > 0) logger.LogInformation("Sent {Count} review reminder(s)", sent);
         return sent;
     }
 

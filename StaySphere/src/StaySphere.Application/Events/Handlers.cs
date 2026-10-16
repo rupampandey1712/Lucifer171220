@@ -61,6 +61,9 @@ public sealed class NotificationEventHandler(INotificationService notifications,
 
     public async Task HandleAsync(ReservationCompletedEvent e, CancellationToken ct)
     {
+        var link = $"/trips/{e.ReservationId}";
+        // The review-reminder job may already have sent this (same type + link) if this event was delayed.
+        if (await db.Notifications.AnyAsync(n => n.UserId == e.GuestId && n.Type == "review.reminder" && n.Link == link, ct)) return;
         var info = await InfoAsync(e.ReservationId, ct);
         await notifications.NotifyAsync(e.GuestId, "review.reminder", "How was your stay?",
             $"Share your experience at {info.Title} to help other travellers.", $"/trips/{e.ReservationId}", ct, email: true);

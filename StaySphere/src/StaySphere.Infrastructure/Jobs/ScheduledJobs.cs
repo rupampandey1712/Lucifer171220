@@ -22,6 +22,7 @@ public sealed class ScheduledJobs(IServiceScopeFactory scopes, ILogger<Scheduled
         new("reconcile-payments", TimeSpan.FromSeconds(60), (sp, ct) => sp.GetRequiredService<IPaymentService>().ReconcilePendingAsync(ct)),
         new("complete-stays", TimeSpan.FromMinutes(10), (sp, ct) => sp.GetRequiredService<IBookingMaintenance>().CompleteFinishedStaysAsync(ct)),
         new("checkin-reminders", TimeSpan.FromHours(1), (sp, ct) => sp.GetRequiredService<IBookingMaintenance>().SendCheckInRemindersAsync(ct)),
+        new("review-reminders", TimeSpan.FromHours(6), (sp, ct) => sp.GetRequiredService<IBookingMaintenance>().SendReviewRemindersAsync(ct)),
         new("cleanup", TimeSpan.FromHours(6), (sp, ct) => sp.GetRequiredService<IBookingMaintenance>().CleanupAsync(ct)),
     ];
 

@@ -95,7 +95,7 @@ The **RL** column gives the rate-limit policy.
 | Method | Path | Access |
 |---|---|---|
 | GET | /properties/{id}/reviews?page | Anon |
-| POST | /reviews `{reservationId, ratings…, comment}` | Owner guest (completed stay, within 14 days, once only) |
+| POST | /reviews `{reservationId, ratings…, comment}` | Owner guest (completed stay, within 30 days of checkout, once only) |
 | POST | /reviews/{id}/response | Host of property |
 | POST | /reviews/{id}/report | User |
 | GET | /favorites | User |
