@@ -24,6 +24,13 @@ public interface IEmailSender
 public sealed record StoredFile(string Key, string Url);
 
 /// <summary>Blob storage abstraction (Azure Blob Storage in production, Azurite or local disk in development).</summary>
+/// <summary>Containers whose name starts with "private-" are never publicly readable; files are served only through the API.</summary>
+public static class StorageContainers
+{
+    public const string MessageAttachments = "private-message-attachments";
+    public static bool IsPrivate(string container) => container.StartsWith("private-", StringComparison.Ordinal);
+}
+
 public interface IFileStorageService
 {
     Task<StoredFile> UploadAsync(string container, string key, Stream content, string contentType, CancellationToken cancellationToken);

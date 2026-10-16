@@ -26,14 +26,15 @@ public sealed class BlobFileStorageService(BlobServiceClient client, IOptions<St
 {
     public async Task<StoredFile> UploadAsync(string container, string key, Stream content, string contentType, CancellationToken cancellationToken)
     {
+        var isPrivate = StorageContainers.IsPrivate(container);
         var containerClient = client.GetBlobContainerClient(container);
-        await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
+        await containerClient.CreateIfNotExistsAsync(isPrivate ? PublicAccessType.None : PublicAccessType.Blob, cancellationToken: cancellationToken);
         var blob = containerClient.GetBlobClient(key);
         await blob.UploadAsync(content, new BlobUploadOptions
         {
-            HttpHeaders = new BlobHttpHeaders { ContentType = contentType, CacheControl = "public, max-age=31536000, immutable" },
+            HttpHeaders = new BlobHttpHeaders { ContentType = contentType, CacheControl = isPrivate ? "private, no-store" : "public, max-age=31536000, immutable" },
         }, cancellationToken);
-        return new StoredFile(key, GetReadUrl(container, key));
+        return new StoredFile(key, isPrivate ? string.Empty : GetReadUrl(container, key));
     }
 
     public async Task<Stream?> DownloadAsync(string container, string key, CancellationToken cancellationToken)
@@ -54,7 +55,9 @@ public sealed class BlobFileStorageService(BlobServiceClient client, IOptions<St
 
 public sealed class LocalFileStorageService(IOptions<StorageOptions> options) : IFileStorageService
 {
-    private string Root => Path.GetFullPath(options.Value.LocalPath);
+    private string PublicRoot => Path.GetFullPath(options.Value.LocalPath);
+    // Private containers live in a sibling folder that the /media static-file middleware never serves.
+    private string PrivateRoot => PublicRoot.TrimEnd(Path.DirectorySeparatorChar) + "-private";
 
     public async Task<StoredFile> UploadAsync(string container, string key, Stream content, string contentType, CancellationToken cancellationToken)
     {
@@ -62,7 +65,7 @@ public sealed class LocalFileStorageService(IOptions<StorageOptions> options) : 
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await using var file = File.Create(path);
         await content.CopyToAsync(file, cancellationToken);
-        return new StoredFile(key, GetReadUrl(container, key));
+        return new StoredFile(key, StorageContainers.IsPrivate(container) ? string.Empty : GetReadUrl(container, key));
     }
 
     public Task<Stream?> DownloadAsync(string container, string key, CancellationToken cancellationToken)
@@ -82,8 +85,9 @@ public sealed class LocalFileStorageService(IOptions<StorageOptions> options) : 
 
     private string SafePath(string container, string key)
     {
-        var path = Path.GetFullPath(Path.Combine(Root, container, key));
-        if (!path.StartsWith(Root, StringComparison.Ordinal)) throw new InvalidOperationException("Invalid storage key.");
+        var root = StorageContainers.IsPrivate(container) ? PrivateRoot : PublicRoot;
+        var path = Path.GetFullPath(Path.Combine(root, container, key));
+        if (!path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal)) throw new InvalidOperationException("Invalid storage key.");
         return path;
     }
 }

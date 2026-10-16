@@ -104,6 +104,8 @@ The **RL** column gives the rate-limit policy.
 | POST | /conversations `{propertyId, reservationId?, message}` | User |
 | GET | /conversations/{id}/messages?before | Participant |
 | POST | /conversations/{id}/messages | Participant, RL `messaging` |
+| POST | /conversations/{id}/attachments (multipart: file, caption?) — image (re-encoded) or PDF (no active content), ≤5 MB | Participant, RL `upload` |
+| GET | /conversations/{id}/messages/{messageId}/attachment — private file, `no-store`, sandbox CSP | Participant |
 | POST | /conversations/{id}/read | Participant |
 | POST | /conversations/{id}/report | Participant |
 | GET | /notifications, POST /notifications/read-all | User |

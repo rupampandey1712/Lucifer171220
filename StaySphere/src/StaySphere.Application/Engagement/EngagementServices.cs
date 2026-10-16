@@ -76,6 +76,10 @@ public interface IMessagingService
     Task<Result<ConversationDto>> StartAsync(StartConversationRequest request, CancellationToken ct);
     Task<Result<PagedResult<MessageDto>>> GetMessagesAsync(Guid conversationId, DateTimeOffset? before, int pageSize, CancellationToken ct);
     Task<Result<MessageDto>> SendAsync(Guid conversationId, string body, CancellationToken ct);
+    /// <summary>Sends an image (re-encoded) or PDF (checked) as a message. Stored privately.</summary>
+    Task<Result<MessageDto>> SendAttachmentAsync(Guid conversationId, Stream content, string fileName, string? caption, CancellationToken ct);
+    /// <summary>Participants only; anyone else gets 404.</summary>
+    Task<Result<AttachmentDownload>> DownloadAttachmentAsync(Guid conversationId, Guid messageId, CancellationToken ct);
     Task<Result> MarkReadAsync(Guid conversationId, CancellationToken ct);
     Task<Result> ReportAsync(Guid conversationId, string reason, CancellationToken ct);
     Task<Result<Guid>> GetOtherParticipantAsync(Guid conversationId, CancellationToken ct);
@@ -86,6 +90,9 @@ public sealed class MessagingService(
     IAppDbContext db,
     ICurrentUser currentUser,
     IRealtimeNotifier realtime,
+    IFileStorageService storage,
+    IImageProcessor images,
+    IMalwareScanner malwareScanner,
     TimeProvider clock,
     ILogger<MessagingService> logger) : IMessagingService
 {
@@ -172,7 +179,7 @@ public sealed class MessagingService(
         if (before is not null) q = q.Where(m => m.SentAt < before);
         var page = await q.OrderByDescending(m => m.SentAt).Take(pageSize).ToListAsync(ct);
         var items = page.OrderBy(m => m.SentAt)
-            .Select(m => new MessageDto(m.Id, m.ConversationId, m.SenderId, m.Body, m.SentAt, m.SenderId == me && m.SentAt <= otherReadAt)).ToList();
+            .Select(m => ToDto(m, m.SenderId == me && m.SentAt <= otherReadAt)).ToList();
         var next = page.Count == pageSize ? page[^1].SentAt.ToString("O") : null;
         return new PagedResult<MessageDto>(items, 1, pageSize, items.Count, next);
     }
@@ -187,8 +194,90 @@ public sealed class MessagingService(
         c.MarkRead(me, sent.Value.Id);
         await db.SaveChangesAsync(ct);
         await PushAsync(c, sent.Value, ct);
-        return new MessageDto(sent.Value.Id, c.Id, me, sent.Value.Body, sent.Value.SentAt, false);
+        return ToDto(sent.Value, false);
     }
+
+    private static readonly byte[] PdfMagic = "%PDF-"u8.ToArray();
+
+    // Active PDF content we refuse outright (scripts, auto-actions, launching programs, embedded files).
+    private static readonly string[] PdfActiveContent = ["/JavaScript", "/JS", "/OpenAction", "/AA", "/Launch", "/EmbeddedFile", "/RichMedia"];
+
+    public async Task<Result<MessageDto>> SendAttachmentAsync(Guid conversationId, Stream content, string fileName, string? caption, CancellationToken ct)
+    {
+        var me = currentUser.RequireUserId();
+        var c = await db.Conversations.FirstOrDefaultAsync(x => x.Id == conversationId, ct);
+        if (c is null || !c.IsParticipant(me)) return NotFound;
+
+        // The endpoint caps the request body (RequestSizeLimit), so buffering here is bounded.
+        using var buffer = new MemoryStream();
+        await content.CopyToAsync(buffer, ct);
+        if (buffer.Length == 0 || buffer.Length > MessageAttachment.MaxBytes)
+            return Error.Validation("attachment.size", "Attachments must be between 1 byte and 5 MB.");
+        var bytes = buffer.ToArray();
+
+        byte[] stored;
+        string contentType, extension;
+        if (bytes.AsSpan().StartsWith(PdfMagic))
+        {
+            var text = System.Text.Encoding.Latin1.GetString(bytes);
+            if (PdfActiveContent.Any(token => text.Contains(token, StringComparison.Ordinal)))
+                return Error.Validation("attachment.unsafe", "PDFs with scripts, actions or embedded files aren't allowed.");
+            (stored, contentType, extension) = (bytes, "application/pdf", ".pdf");
+        }
+        else
+        {
+            // Anything else must be a real image: decoded and re-encoded, which strips metadata and neutralises polyglots.
+            var processed = await images.ProcessAsync(new MemoryStream(bytes), ct);
+            if (processed.IsFailure) return processed.Error!; // e.g. not an image, too small, too large
+            (stored, contentType, extension) = (processed.Value.Full, processed.Value.ContentType, processed.Value.Extension);
+        }
+
+        if (!await malwareScanner.IsCleanAsync(stored, ct))
+            return Error.Validation("attachment.rejected", "This file was rejected by the security scan.");
+
+        var key = $"{conversationId:N}/{Guid.NewGuid():N}{extension}";
+        await using (var upload = new MemoryStream(stored))
+            await storage.UploadAsync(StorageContainers.MessageAttachments, key, upload, contentType, ct);
+
+        var safeName = SafeFileName(fileName, extension);
+        var sent = c.Send(me, caption ?? string.Empty, new MessageAttachment(key, safeName, contentType, stored.LongLength), clock.GetUtcNow());
+        if (sent.IsFailure)
+        {
+            await storage.DeleteAsync(StorageContainers.MessageAttachments, key, ct);
+            return sent.Error!;
+        }
+
+        c.MarkRead(me, sent.Value.Id);
+        await db.SaveChangesAsync(ct);
+        await PushAsync(c, sent.Value, ct);
+        return ToDto(sent.Value, false);
+    }
+
+    public async Task<Result<AttachmentDownload>> DownloadAttachmentAsync(Guid conversationId, Guid messageId, CancellationToken ct)
+    {
+        var me = currentUser.RequireUserId();
+        var c = await db.Conversations.AsNoTracking().FirstOrDefaultAsync(x => x.Id == conversationId, ct);
+        if (c is null || !c.IsParticipant(me)) return NotFound;
+        var attachment = await db.Messages.AsNoTracking().Where(m => m.Id == messageId && m.ConversationId == conversationId)
+            .Select(m => m.Attachment).FirstOrDefaultAsync(ct);
+        if (attachment is null) return Error.NotFound("attachment.not_found", "Attachment not found.");
+        var stream = await storage.DownloadAsync(StorageContainers.MessageAttachments, attachment.StorageKey, ct);
+        return stream is null
+            ? Error.NotFound("attachment.not_found", "Attachment not found.")
+            : new AttachmentDownload(stream, attachment.FileName, attachment.ContentType);
+    }
+
+    private static string SafeFileName(string fileName, string extension)
+    {
+        var name = Path.GetFileNameWithoutExtension(fileName ?? string.Empty);
+        var cleaned = new string(name.Where(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_' or ' ').ToArray()).Trim();
+        if (cleaned.Length == 0) cleaned = "attachment";
+        return (cleaned.Length > 80 ? cleaned[..80] : cleaned) + extension;
+    }
+
+    private static MessageDto ToDto(Message m, bool isRead) => new(m.Id, m.ConversationId, m.SenderId, m.Body, m.SentAt, isRead,
+        m.Attachment is null ? null : new MessageAttachmentDto(m.Attachment.FileName, m.Attachment.ContentType, m.Attachment.SizeBytes,
+            $"/api/v1/conversations/{m.ConversationId}/messages/{m.Id}/attachment"));
 
     public async Task<Result> MarkReadAsync(Guid conversationId, CancellationToken ct)
     {
@@ -230,7 +319,7 @@ public sealed class MessagingService(
 
     private Task PushAsync(Conversation c, Message m, CancellationToken ct)
     {
-        var dto = new MessageDto(m.Id, c.Id, m.SenderId, m.Body, m.SentAt, false);
+        var dto = ToDto(m, false);
         return Task.WhenAll(SafePush(c.OtherParticipant(m.SenderId), "ReceiveMessage", dto, ct), SafePush(m.SenderId, "ReceiveMessage", dto, ct));
     }
 

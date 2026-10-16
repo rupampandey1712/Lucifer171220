@@ -442,6 +442,13 @@ internal sealed class MessageConfiguration : IEntityTypeConfiguration<Message>
     {
         b.ToTable("Messages", "engagement");
         b.Property(x => x.Body).HasMaxLength(4000);
+        b.OwnsOne(x => x.Attachment, a =>
+        {
+            a.Property(p => p.StorageKey).HasColumnName("AttachmentKey").HasMaxLength(200);
+            a.Property(p => p.FileName).HasColumnName("AttachmentName").HasMaxLength(200);
+            a.Property(p => p.ContentType).HasColumnName("AttachmentContentType").HasMaxLength(100);
+            a.Property(p => p.SizeBytes).HasColumnName("AttachmentSize");
+        });
         b.HasIndex(x => new { x.ConversationId, x.SentAt });
     }
 }

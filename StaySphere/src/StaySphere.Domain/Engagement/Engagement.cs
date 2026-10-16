@@ -54,12 +54,16 @@ public sealed class Conversation : AggregateRoot
 
     public Guid OtherParticipant(Guid userId) => userId == GuestId ? HostId : GuestId;
 
-    public Result<Message> Send(Guid senderId, string body, DateTimeOffset now)
+    public Result<Message> Send(Guid senderId, string body, DateTimeOffset now) => Send(senderId, body, null, now);
+
+    /// <summary>Sends a message; with an attachment the text is optional (a caption).</summary>
+    public Result<Message> Send(Guid senderId, string body, MessageAttachment? attachment, DateTimeOffset now)
     {
         if (!IsParticipant(senderId)) return Error.Forbidden("conversation.not_participant", "You are not part of this conversation.");
         var text = body.Trim();
-        if (text.Length is 0 or > 4000) return Error.Validation("message.length", "Messages must be between 1 and 4000 characters.");
-        var message = new Message(Id, senderId, text, now);
+        if (text.Length > 4000 || (text.Length == 0 && attachment is null))
+            return Error.Validation("message.length", "Messages must be between 1 and 4000 characters.");
+        var message = new Message(Id, senderId, text, now, attachment);
         _messages.Add(message);
         LastMessageAt = now;
         Raise(new MessageSentDomainEvent(Id, message.Id, senderId, OtherParticipant(senderId)));
@@ -79,8 +83,9 @@ public sealed class Message : Entity
 {
     private Message() { }
 
-    internal Message(Guid conversationId, Guid senderId, string body, DateTimeOffset sentAt)
+    internal Message(Guid conversationId, Guid senderId, string body, DateTimeOffset sentAt, MessageAttachment? attachment = null)
     {
+        Attachment = attachment;
         ConversationId = conversationId;
         SenderId = senderId;
         Body = body;
@@ -91,6 +96,13 @@ public sealed class Message : Entity
     public Guid SenderId { get; private set; }
     public string Body { get; private set; } = default!;
     public DateTimeOffset SentAt { get; private set; }
+    public MessageAttachment? Attachment { get; private set; }
+}
+
+/// <summary>A file attached to a message. Stored privately; only conversation participants can download it.</summary>
+public sealed record MessageAttachment(string StorageKey, string FileName, string ContentType, long SizeBytes)
+{
+    public const long MaxBytes = 5 * 1024 * 1024;
 }
 
 public sealed class Notification : Entity

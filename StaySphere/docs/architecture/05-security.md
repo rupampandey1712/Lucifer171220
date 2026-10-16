@@ -87,3 +87,12 @@ policy with a cross-tenant case.
 | DoS | Outage | WAF, rate limiting, request size limits, timeouts, autoscale, bulkheads on outbound calls |
 | Insider misuse (admin) | Data abuse | audited admin actions, least privilege, Entra SSO + MFA for staff |
 | PII leakage in logs | Compliance | redaction policy, log reviews in tests (assert no `password` in captured logs) |
+
+
+## Message attachments
+Attachments are stored in a `private-` storage container: on Azure Blob with no public access, and locally in a folder
+that the `/media` static-file middleware never serves. They are downloaded only through
+`GET /conversations/{id}/messages/{messageId}/attachment`, which checks that the caller is a participant (404 otherwise) and
+returns `Cache-Control: private, no-store` with a sandboxing CSP. Images are decoded and re-encoded (metadata stripped);
+PDFs must start with `%PDF-` and may not contain scripts, auto-actions, launch actions or embedded files. File names are
+reduced to safe characters, and both kinds go through the malware-scanner port.

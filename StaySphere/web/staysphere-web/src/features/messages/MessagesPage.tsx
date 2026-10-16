@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clsx } from 'clsx';
-import { ArrowLeft, Check, CheckCheck, Flag, MessageSquare, Send } from 'lucide-react';
+import { ArrowLeft, Check, CheckCheck, FileText, Flag, MessageSquare, Paperclip, Send } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { api } from '@/api/client';
+import { api, ApiError } from '@/api/client';
 import type { ConversationDto, MessageDto, Paged } from '@/api/types';
 import { EmptyState, ErrorState, Skeleton } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
@@ -91,6 +91,23 @@ function Chat({ conversationId, conversation }: { conversationId: string; conver
     onSettled: () => { qc.invalidateQueries({ queryKey: ['messages', conversationId] }); qc.invalidateQueries({ queryKey: ['conversations'] }); },
   });
 
+  const fileInput = useRef<HTMLInputElement>(null);
+  const attach = useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append('file', file);
+      if (text.trim()) form.append('caption', text.trim());
+      return api<MessageDto>(`/conversations/${conversationId}/attachments`, { method: 'POST', body: form, timeoutMs: 60000 });
+    },
+    onSuccess: () => { setText(''); qc.invalidateQueries({ queryKey: ['messages', conversationId] }); qc.invalidateQueries({ queryKey: ['conversations'] }); },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : 'Could not send the file'),
+  });
+  const onFile = (file?: File) => {
+    if (!file) return;
+    if (file.size > MAX_ATTACHMENT_BYTES) { toast.error('Files can be up to 5 MB.'); return; }
+    attach.mutate(file);
+  };
+
   const report = useMutation({
     mutationFn: () => api(`/conversations/${conversationId}/report`, { method: 'POST', body: { targetType: 'Conversation', targetId: conversationId, reason: 'Reported from chat' } }),
     onSuccess: () => toast.success('Thanks — our trust & safety team will review this conversation.'),
@@ -120,7 +137,8 @@ function Chat({ conversationId, conversation }: { conversationId: string; conver
           return (
             <div key={m.id} className={clsx('flex', mine ? 'justify-end' : 'justify-start')}>
               <div className={clsx('max-w-[75%] rounded-2xl px-4 py-2.5 text-sm shadow-sm', mine ? 'rounded-br-md bg-brand-700 text-white' : 'rounded-bl-md bg-white')}>
-                <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                {m.attachment && <Attachment attachment={m.attachment} mine={mine} />}
+                {m.body && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
                 <p className={clsx('mt-1 flex items-center justify-end gap-1 text-[10px]', mine ? 'text-teal-100' : 'text-slate-400')}>
                   {relativeTime(m.sentAt)} {mine && (m.isRead ? <CheckCheck className="h-3 w-3" aria-label="Read" /> : <Check className="h-3 w-3" aria-label="Sent" />)}
                 </p>
@@ -132,9 +150,57 @@ function Chat({ conversationId, conversation }: { conversationId: string; conver
         <div ref={bottom} />
       </div>
       <form className="flex gap-2 border-t border-slate-200 p-3" onSubmit={(e) => { e.preventDefault(); if (text.trim()) { send.mutate(text.trim()); setText(''); } }}>
+        <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" aria-hidden tabIndex={-1}
+          onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ''; }} />
+        <button type="button" className="btn-secondary !px-3" onClick={() => fileInput.current?.click()} disabled={attach.isPending} aria-label="Attach a photo or PDF">
+          <Paperclip className="h-4 w-4" />
+        </button>
         <input className="input" placeholder="Write a message…" value={text} onChange={(e) => onType(e.target.value)} maxLength={4000} aria-label="Message" />
         <button className="btn-primary" disabled={!text.trim()} aria-label="Send"><Send className="h-4 w-4" /></button>
       </form>
     </>
+  );
+}
+
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+type AttachmentDto = NonNullable<MessageDto['attachment']>;
+
+/** Attachments are private: fetched with the user's token and shown from a short-lived object URL. */
+function Attachment({ attachment, mine }: { attachment: AttachmentDto; mine: boolean }) {
+  const isImage = attachment.contentType.startsWith('image/');
+  const path = attachment.url.replace(/^\/api\/v1/, '');
+  const blob = useQuery({ queryKey: ['attachment', attachment.url], queryFn: () => api<Blob>(path, { responseType: 'blob' }), enabled: isImage, staleTime: Infinity });
+  const [src, setSrc] = useState<string>();
+  useEffect(() => {
+    if (!blob.data) return;
+    const url = URL.createObjectURL(blob.data);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [blob.data]);
+
+  const download = async () => {
+    try {
+      const file = await api<Blob>(path, { responseType: 'blob', timeoutMs: 60000 });
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = attachment.fileName;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  if (isImage)
+    return src
+      ? <button type="button" onClick={download} className="mb-2 block" aria-label={`Download ${attachment.fileName}`}><img src={src} alt={attachment.fileName} className="max-h-64 rounded-lg" /></button>
+      : <Skeleton className="mb-2 h-40 w-56" />;
+  return (
+    <button type="button" onClick={download} className={clsx('mb-2 flex items-center gap-2 rounded-lg px-3 py-2 text-left', mine ? 'bg-brand-800' : 'bg-slate-100')}>
+      <FileText className="h-5 w-5 shrink-0" aria-hidden />
+      <span className="min-w-0"><span className="block truncate font-medium">{attachment.fileName}</span><span className="text-xs opacity-75">PDF · {Math.ceil(attachment.sizeBytes / 1024)} KB</span></span>
+    </button>
   );
 }

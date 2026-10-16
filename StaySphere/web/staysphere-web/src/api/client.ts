@@ -49,10 +49,12 @@ export interface RequestOptions extends Omit<RequestInit, 'body'> {
   idempotencyKey?: string;
   retryOnUnauthorized?: boolean;
   timeoutMs?: number;
+  /** 'blob' for authenticated file downloads (e.g. message attachments). */
+  responseType?: 'json' | 'blob';
 }
 
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, idempotencyKey, retryOnUnauthorized = true, timeoutMs = 20000, headers, ...init } = options;
+  const { body, idempotencyKey, retryOnUnauthorized = true, timeoutMs = 20000, headers, responseType = 'json', ...init } = options;
   const token = useAuthStore.getState().accessToken;
   const isForm = body instanceof FormData;
   const controller = new AbortController();
@@ -95,6 +97,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     throw new ApiError(res.status, problem.title ?? defaultMessage(res.status), problem);
   }
 
+  if (responseType === 'blob') return (await res.blob()) as T;
   if (res.status === 204 || res.headers.get('content-length') === '0') return undefined as T;
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;

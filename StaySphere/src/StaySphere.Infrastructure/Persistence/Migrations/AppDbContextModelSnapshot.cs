@@ -2115,6 +2115,43 @@ namespace StaySphere.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.OwnsOne("StaySphere.Domain.Engagement.MessageAttachment", "Attachment", b1 =>
+                        {
+                            b1.Property<Guid>("MessageId")
+                                .HasColumnType("uniqueidentifier");
+
+                            b1.Property<string>("ContentType")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)")
+                                .HasColumnName("AttachmentContentType");
+
+                            b1.Property<string>("FileName")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)")
+                                .HasColumnName("AttachmentName");
+
+                            b1.Property<long>("SizeBytes")
+                                .HasColumnType("bigint")
+                                .HasColumnName("AttachmentSize");
+
+                            b1.Property<string>("StorageKey")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)")
+                                .HasColumnName("AttachmentKey");
+
+                            b1.HasKey("MessageId");
+
+                            b1.ToTable("Messages", "engagement");
+
+                            b1.WithOwner()
+                                .HasForeignKey("MessageId");
+                        });
+
+                    b.Navigation("Attachment");
                 });
 
             modelBuilder.Entity("StaySphere.Domain.Identity.RefreshToken", b =>

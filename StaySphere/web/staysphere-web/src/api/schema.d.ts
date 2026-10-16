@@ -2439,6 +2439,133 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/conversations/{id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Attach an image (JPEG/PNG/WebP, re-encoded) or a PDF (no scripts/actions) up to 5 MB, with an optional caption. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "multipart/form-data": {
+                        /** Format: binary */
+                        file?: string;
+                        caption?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Engagement.MessageDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/{id}/messages/{messageId}/attachment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download an attachment. Participants only; stored privately and never publicly addressable. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    messageId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversations/{id}/read": {
         parameters: {
             query?: never;
@@ -7407,6 +7534,13 @@ export interface components {
             /** Format: int32 */
             unreadCount: number;
         };
+        "Engagement.MessageAttachmentDto": {
+            fileName: string;
+            contentType: string;
+            /** Format: int64 */
+            sizeBytes: number;
+            url: string;
+        };
         "Engagement.MessageDto": {
             /** Format: uuid */
             id: string;
@@ -7418,6 +7552,7 @@ export interface components {
             /** Format: date-time */
             sentAt: string;
             isRead: boolean;
+            attachment?: components["schemas"]["Engagement.MessageAttachmentDto"];
         };
         "Engagement.NotificationDto": {
             /** Format: uuid */

@@ -91,6 +91,31 @@ public sealed class ConversationsController(IMessagingService messaging) : ApiCo
     [EnableRateLimiting(RateLimitPolicies.Messaging)]
     public async Task<ActionResult<MessageDto>> Send(Guid id, SendMessageRequest request, CancellationToken ct) => FromResult(await messaging.SendAsync(id, request.Body, ct));
 
+    /// <summary>Attach an image (JPEG/PNG/WebP, re-encoded) or a PDF (no scripts/actions) up to 5 MB, with an optional caption.</summary>
+    [HttpPost("{id:guid}/attachments")]
+    [EnableRateLimiting(RateLimitPolicies.Upload)]
+    [RequestSizeLimit(6 * 1024 * 1024)]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<MessageDto>> Attach(Guid id, IFormFile file, [FromForm] string? caption, CancellationToken ct)
+    {
+        await using var stream = file.OpenReadStream();
+        return FromResult(await messaging.SendAttachmentAsync(id, stream, file.FileName, caption, ct));
+    }
+
+    /// <summary>Download an attachment. Participants only; stored privately and never publicly addressable.</summary>
+    [HttpGet("{id:guid}/messages/{messageId:guid}/attachment")]
+    public async Task<IActionResult> Attachment(Guid id, Guid messageId, CancellationToken ct)
+    {
+        var result = await messaging.DownloadAttachmentAsync(id, messageId, ct);
+        if (result.IsFailure) return Problem(result.Error!);
+        // Sandboxed and never cached by shared proxies; PDFs download rather than render inside our origin.
+        Response.Headers.CacheControl = "private, no-store";
+        Response.Headers.ContentSecurityPolicy = "sandbox; default-src 'none'; img-src 'self'";
+        var a = result.Value;
+        var inline = a.ContentType.StartsWith("image/", StringComparison.Ordinal);
+        return File(a.Content, a.ContentType, inline ? null : a.FileName);
+    }
+
     [HttpPost("{id:guid}/read")]
     public async Task<IActionResult> Read(Guid id, CancellationToken ct) => FromResult(await messaging.MarkReadAsync(id, ct));
 
