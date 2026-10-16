@@ -77,6 +77,12 @@ public sealed record WeatherDay(DateOnly Date, double MinC, double MaxC, int Wea
 
 public sealed record WeatherResult(double Latitude, double Longitude, double? CurrentTempC, string? CurrentSummary, IReadOnlyList<WeatherDay> Daily, string Source);
 
+/// <summary>Reference list of countries (REST Countries live, built-in list in mock mode or when the API is down).</summary>
+public interface ICountryService
+{
+    Task<IReadOnlyList<Contracts.Search.CountryDto>> GetAllAsync(CancellationToken cancellationToken);
+}
+
 public interface IWeatherService
 {
     Task<WeatherResult?> GetForecastAsync(double latitude, double longitude, CancellationToken cancellationToken);

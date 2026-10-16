@@ -38,7 +38,7 @@ flowchart TB
 | Front Door / CDN | nginx in web container | — | — |
 | Azure OpenAI | **Ollama** | `IChatClient` (Microsoft.Extensions.AI) | `ScriptedChatClient` (tests) |
 | Payment provider | `LocalFakePaymentProvider` (in-process plus webhook emitter) | `IPaymentProvider` | — |
-| External public APIs | WireMock (`EXTERNAL_SERVICES_MODE=Mock`) or the real free APIs (`=Live`) | `IGeocodingService`, `IWeatherService`, `ICurrencyService`, `ICountryService` | `Mock*Service` |
+| External public APIs | Built-in mocks (`EXTERNAL_SERVICES_MODE=Mock`, default) or the real free APIs (`=Live`) | `IGeocodingService`, `IWeatherService`, `ICurrencyService`, `ICountryService` | `Mock*Service` |
 
 ## Profiles
 - `docker compose up`: infrastructure + api + workers + web, in mock external mode.
@@ -71,3 +71,14 @@ SDK restore → build → test → publish → chiseled runtime; Node build → 
 
 > **Resource note:** SQL Server plus the Service Bus emulator (which needs its own SQL instance)
 > uses about 4 GB RAM. Set `Messaging__Transport=InMemory` to skip the emulator on small machines.
+
+
+## Health endpoints
+| Endpoint | Checks | Used by |
+|---|---|---|
+| `/health/live` | process is up | liveness probe |
+| `/health/ready` | SQL Server, outbox backlog, Redis, Blob storage, Service Bus (when configured) | readiness probe |
+| `/health` | everything above plus external APIs | dashboards |
+
+External APIs report **Degraded**, never Unhealthy, after 3 consecutive failures within 15 minutes. They are judged from real
+calls (a tracking handler on each HTTP client) instead of probing free public APIs on every health check.

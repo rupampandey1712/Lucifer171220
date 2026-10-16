@@ -5,11 +5,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using StaySphere.Application.Abstractions;
 using StaySphere.Application.Ai;
 using StaySphere.Infrastructure.Ai;
+using StaySphere.Infrastructure.Health;
 using StaySphere.Infrastructure.Caching;
 using StaySphere.Infrastructure.Email;
 using StaySphere.Infrastructure.External;
@@ -101,7 +103,9 @@ public static class DependencyInjection
 
         services.AddHealthChecks()
             .AddSqlServer(connectionString, name: "sql", tags: ["ready"])
-            .AddCheck<OutboxHealthCheck>("outbox", tags: ["ready"]);
+            .AddCheck<OutboxHealthCheck>("outbox", tags: ["ready"])
+            // Not "ready": a flaky free API must not take instances out of rotation (the app falls back gracefully).
+            .AddCheck<ExternalApisHealthCheck>("external-apis", failureStatus: HealthStatus.Degraded, tags: ["external"]);
         if (!string.IsNullOrWhiteSpace(redis))
             services.AddHealthChecks().AddRedis(redis, name: "redis", tags: ["ready"]);
         if (storage.Provider.Equals("Blob", StringComparison.OrdinalIgnoreCase))
@@ -114,25 +118,35 @@ public static class DependencyInjection
     {
         var external = configuration.GetSection(ExternalServicesOptions.Section).Get<ExternalServicesOptions>() ?? new ExternalServicesOptions();
         services.AddSingleton<ITaxRateProvider, ConfigTaxRateProvider>();
+        services.AddSingleton<ExternalApiMonitor>();
         services.AddSingleton<MockCurrencyService>();
+        services.AddSingleton<MockCountryService>();
 
         if (!external.Mode.Equals("Live", StringComparison.OrdinalIgnoreCase))
         {
             services.AddSingleton<IGeocodingService, MockGeocodingService>();
             services.AddSingleton<IWeatherService, MockWeatherService>();
             services.AddSingleton<ICurrencyService>(sp => sp.GetRequiredService<MockCurrencyService>());
+            services.AddSingleton<ICountryService>(sp => sp.GetRequiredService<MockCountryService>());
             return;
         }
 
         // Every outbound call: timeout + retry (idempotent GETs only) + circuit breaker via the standard resilience pipeline.
+        // The tracking handler sits outside the resilience pipeline, so it records each call's final outcome (after retries).
         services.AddHttpClient<IGeocodingService, NominatimGeocodingService>(c =>
         {
             c.BaseAddress = new Uri(external.NominatimBaseUrl);
             c.DefaultRequestHeaders.UserAgent.ParseAdd(external.UserAgent);
-        }).AddStandardResilienceHandler();
+        }).AddHttpMessageHandler(sp => new ExternalApiTrackingHandler(sp.GetRequiredService<ExternalApiMonitor>(), "geocoding"))
+          .AddStandardResilienceHandler();
         services.AddHttpClient<IWeatherService, OpenMeteoWeatherService>(c => c.BaseAddress = new Uri(external.OpenMeteoBaseUrl))
+            .AddHttpMessageHandler(sp => new ExternalApiTrackingHandler(sp.GetRequiredService<ExternalApiMonitor>(), "weather"))
             .AddStandardResilienceHandler();
         services.AddHttpClient<ICurrencyService, FrankfurterCurrencyService>(c => c.BaseAddress = new Uri(external.FrankfurterBaseUrl))
+            .AddHttpMessageHandler(sp => new ExternalApiTrackingHandler(sp.GetRequiredService<ExternalApiMonitor>(), "currency"))
+            .AddStandardResilienceHandler();
+        services.AddHttpClient<ICountryService, RestCountriesService>(c => c.BaseAddress = new Uri(external.RestCountriesBaseUrl))
+            .AddHttpMessageHandler(sp => new ExternalApiTrackingHandler(sp.GetRequiredService<ExternalApiMonitor>(), "countries"))
             .AddStandardResilienceHandler();
     }
 
@@ -147,6 +161,7 @@ public static class DependencyInjection
                 ? new ServiceBusClient(messaging.ServiceBusNamespace ?? throw new InvalidOperationException("Messaging:ServiceBusNamespace or connection string is required."), new DefaultAzureCredential())
                 : new ServiceBusClient(messaging.ServiceBusConnectionString));
             services.AddSingleton<IMessageBus, ServiceBusMessageBus>();
+            services.AddHealthChecks().AddCheck<ServiceBusHealthCheck>("servicebus", tags: ["ready"]);
             if (workers.Consumers) services.AddHostedService<ServiceBusConsumer>();
         }
         else

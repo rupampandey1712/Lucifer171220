@@ -225,3 +225,13 @@ public sealed class GeoController(IGeocodingService geocoding, ICurrencyService 
     public async Task<ActionResult<ExchangeRates>> Rates([FromQuery] string @base = "USD", CancellationToken ct = default) =>
         @base.Length == 3 ? Ok(await currency.GetRatesAsync(@base, ct)) : BadRequest();
 }
+
+[Route("api/v{version:apiVersion}/countries")]
+[AllowAnonymous]
+public sealed class CountriesController(ICountryService countries) : ApiControllerBase
+{
+    /// <summary>Countries with ISO codes, flags and currencies (cached; built-in list if the provider is down).</summary>
+    [HttpGet]
+    [ResponseCache(Duration = 86400, Location = ResponseCacheLocation.Any)]
+    public async Task<ActionResult<IReadOnlyList<CountryDto>>> Get(CancellationToken ct) => Ok(await countries.GetAllAsync(ct));
+}

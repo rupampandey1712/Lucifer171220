@@ -90,6 +90,7 @@ The **RL** column gives the rate-limit policy.
 | GET, POST | /host/promotions; POST /host/promotions/{id}/deactivate | Host (own listings only) | |
 | GET, POST | /admin/promotions; POST /admin/promotions/{id}/deactivate | Admin (platform-wide) | |
 | GET | /properties/{id}/promotions | Anon | |
+| GET | /countries (ISO code, name, flag, currencies; REST Countries, cached, built-in fallback) | Anon | |
 
 ## Reviews, favorites, messaging, notifications
 | Method | Path | Access |

@@ -45,3 +45,6 @@ public sealed record SearchPropertiesQuery
 public sealed record DestinationDto(string City, string Country, int ListingCount, double Latitude, double Longitude, string? ImageUrl);
 
 public sealed record GeocodeResultDto(string DisplayName, double Latitude, double Longitude, string? City, string? Country, string? CountryCode);
+
+/// <param name="Code">ISO 3166-1 alpha-2, e.g. PT.</param>
+public sealed record CountryDto(string Code, string Name, string? Flag, IReadOnlyList<string> Currencies);

@@ -12,11 +12,12 @@ namespace StaySphere.Infrastructure.External;
 public sealed class ExternalServicesOptions
 {
     public const string Section = "ExternalServices";
-    /// <summary>Mock (no network) or Live (OpenStreetMap Nominatim, Open-Meteo, Frankfurter).</summary>
+    /// <summary>Mock (no network) or Live (OpenStreetMap Nominatim, Open-Meteo, Frankfurter, REST Countries).</summary>
     public string Mode { get; set; } = "Mock";
     public string NominatimBaseUrl { get; set; } = "https://nominatim.openstreetmap.org/";
     public string OpenMeteoBaseUrl { get; set; } = "https://api.open-meteo.com/";
     public string FrankfurterBaseUrl { get; set; } = "https://api.frankfurter.app/";
+    public string RestCountriesBaseUrl { get; set; } = "https://restcountries.com/";
     /// <summary>Nominatim's usage policy requires an identifying User-Agent and ≤ 1 request/second.</summary>
     public string UserAgent { get; set; } = "StaySphere/1.0 (dev; contact: dev@staysphere.local)";
     public Dictionary<string, decimal> TaxRates { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -207,4 +208,61 @@ public sealed class ConfigTaxRateProvider(IOptions<ExternalServicesOptions> opti
 {
     public decimal GetTaxPercent(string countryCode) =>
         options.Value.TaxRates.TryGetValue(countryCode, out var rate) ? rate : options.Value.DefaultTaxPercent;
+}
+
+/// <summary>Built-in country list: the mock-mode implementation and the live implementation's fallback.</summary>
+public sealed class MockCountryService : ICountryService
+{
+    private static readonly IReadOnlyList<CountryDto> Countries =
+    [
+        new("AE", "United Arab Emirates", "🇦🇪", ["AED"]), new("AR", "Argentina", "🇦🇷", ["ARS"]), new("AT", "Austria", "🇦🇹", ["EUR"]),
+        new("AU", "Australia", "🇦🇺", ["AUD"]), new("BE", "Belgium", "🇧🇪", ["EUR"]), new("BR", "Brazil", "🇧🇷", ["BRL"]),
+        new("CA", "Canada", "🇨🇦", ["CAD"]), new("CH", "Switzerland", "🇨🇭", ["CHF"]), new("CL", "Chile", "🇨🇱", ["CLP"]),
+        new("CN", "China", "🇨🇳", ["CNY"]), new("CZ", "Czechia", "🇨🇿", ["CZK"]), new("DE", "Germany", "🇩🇪", ["EUR"]),
+        new("DK", "Denmark", "🇩🇰", ["DKK"]), new("EG", "Egypt", "🇪🇬", ["EGP"]), new("ES", "Spain", "🇪🇸", ["EUR"]),
+        new("FI", "Finland", "🇫🇮", ["EUR"]), new("FR", "France", "🇫🇷", ["EUR"]), new("GB", "United Kingdom", "🇬🇧", ["GBP"]),
+        new("GR", "Greece", "🇬🇷", ["EUR"]), new("HR", "Croatia", "🇭🇷", ["EUR"]), new("ID", "Indonesia", "🇮🇩", ["IDR"]),
+        new("IE", "Ireland", "🇮🇪", ["EUR"]), new("IN", "India", "🇮🇳", ["INR"]), new("IS", "Iceland", "🇮🇸", ["ISK"]),
+        new("IT", "Italy", "🇮🇹", ["EUR"]), new("JP", "Japan", "🇯🇵", ["JPY"]), new("KE", "Kenya", "🇰🇪", ["KES"]),
+        new("KR", "South Korea", "🇰🇷", ["KRW"]), new("MA", "Morocco", "🇲🇦", ["MAD"]), new("MX", "Mexico", "🇲🇽", ["MXN"]),
+        new("NL", "Netherlands", "🇳🇱", ["EUR"]), new("NO", "Norway", "🇳🇴", ["NOK"]), new("NZ", "New Zealand", "🇳🇿", ["NZD"]),
+        new("PE", "Peru", "🇵🇪", ["PEN"]), new("PL", "Poland", "🇵🇱", ["PLN"]), new("PT", "Portugal", "🇵🇹", ["EUR"]),
+        new("SE", "Sweden", "🇸🇪", ["SEK"]), new("SG", "Singapore", "🇸🇬", ["SGD"]), new("TH", "Thailand", "🇹🇭", ["THB"]),
+        new("TR", "Türkiye", "🇹🇷", ["TRY"]), new("US", "United States", "🇺🇸", ["USD"]), new("VN", "Vietnam", "🇻🇳", ["VND"]),
+        new("ZA", "South Africa", "🇿🇦", ["ZAR"]),
+    ];
+
+    public Task<IReadOnlyList<CountryDto>> GetAllAsync(CancellationToken cancellationToken) => Task.FromResult(Countries);
+}
+
+/// <summary>REST Countries (free, no key). Cached 7 days; falls back to the built-in list when unavailable.</summary>
+public sealed class RestCountriesService(HttpClient http, ICacheService cache, MockCountryService fallback, ILogger<RestCountriesService> logger) : ICountryService
+{
+    private sealed record Item(string? Cca2, NameDto? Name, string? Flag, Dictionary<string, JsonElement>? Currencies);
+    private sealed record NameDto(string? Common);
+
+    public async Task<IReadOnlyList<CountryDto>> GetAllAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await cache.GetOrCreateAsync<IReadOnlyList<CountryDto>>("countries:all", TimeSpan.FromDays(7), async ct =>
+            {
+                var items = await http.GetFromJsonAsync<List<Item>>("v3.1/all?fields=cca2,name,flag,currencies", ct) ?? [];
+                var list = items
+                    .Where(i => i.Cca2 is { Length: 2 } && !string.IsNullOrWhiteSpace(i.Name?.Common))
+                    .Select(i => new CountryDto(i.Cca2!.ToUpperInvariant(), i.Name!.Common!, i.Flag,
+                        i.Currencies?.Keys.Where(k => k.Length == 3).Select(k => k.ToUpperInvariant()).ToList() ?? []))
+                    .OrderBy(c => c.Name, StringComparer.Create(CultureInfo.InvariantCulture, ignoreCase: true))
+                    .ToList();
+                // An empty or broken response must not be cached for a week.
+                if (list.Count < 50) throw new InvalidOperationException($"REST Countries returned only {list.Count} countries.");
+                return list;
+            }, cancellationToken);
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(ex, "REST Countries unavailable; using the built-in country list");
+            return await fallback.GetAllAsync(cancellationToken);
+        }
+    }
 }

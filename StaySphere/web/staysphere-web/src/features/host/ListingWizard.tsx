@@ -4,7 +4,7 @@ import { Check, ImagePlus, Loader2, MapPin, Search, Trash2 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { api, ApiError, toQuery } from '@/api/client';
-import type { AmenityDto, GeocodeResult, ImageDto, PropertyDetail, UpdatePropertyRequest } from '@/api/types';
+import type { AmenityDto, CountryDto, GeocodeResult, ImageDto, PropertyDetail, UpdatePropertyRequest } from '@/api/types';
 import { GuestSelector } from '@/components/SearchBar';
 import { ErrorState, PageLoader, Skeleton, SafeImg } from '@/components/ui';
 import { humanize, money } from '@/lib/format';
@@ -136,6 +136,12 @@ function LocationStep({ p, onChange }: { p: PropertyDetail; onChange: (c: Update
   const [addr, setAddr] = useState(p.address ?? { line1: '', line2: null, city: '', region: null, postalCode: null, countryCode: '', country: '' });
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(p.latitude != null ? { lat: p.latitude, lng: p.longitude! } : null);
   const results = useQuery({ queryKey: ['geocode', q], queryFn: () => api<GeocodeResult[]>(`/geo/geocode${toQuery({ q })}`), enabled: q.length >= 3 });
+  const countries = useQuery({ queryKey: ['countries'], queryFn: () => api<CountryDto[]>('/countries'), staleTime: Infinity });
+  const pickCountry = (code: string) => {
+    const c = countries.data?.find((x) => x.code === code);
+    const a = { ...addr, countryCode: code, country: c?.name ?? addr.country };
+    setAddr(a); commit(a);
+  };
   const commit = (a = addr, c = coords) => { if (a.line1 && a.city && a.countryCode.length === 2 && c) onChange({ address: a, latitude: c.lat, longitude: c.lng }); };
   const pick = (r: GeocodeResult) => {
     const a = { ...addr, city: r.city ?? addr.city, country: r.country ?? addr.country, countryCode: r.countryCode ?? addr.countryCode };
@@ -154,7 +160,17 @@ function LocationStep({ p, onChange }: { p: PropertyDetail; onChange: (c: Update
         <input className="input pl-9" placeholder="Search for a city or address (OpenStreetMap)" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search location" />
         {(results.data?.length ?? 0) > 0 && <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">{results.data!.map((r) => <li key={r.displayName}><button type="button" className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm hover:bg-slate-50" onClick={() => pick(r)}><MapPin className="h-4 w-4 shrink-0" />{r.displayName}</button></li>)}</ul>}
       </div>
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">{field('line1', 'Street address')}{field('city', 'City')}{field('region', 'Region / state')}{field('postalCode', 'Postal code')}{field('country', 'Country')}{field('countryCode', 'Country code (ISO, e.g. PT)')}</div>
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">{field('line1', 'Street address')}{field('city', 'City')}{field('region', 'Region / state')}{field('postalCode', 'Postal code')}
+        <div className="sm:col-span-2"><label className="label" htmlFor="country">Country</label>
+          {countries.data ? (
+            <select id="country" className="input" value={addr.countryCode} onChange={(e) => pickCountry(e.target.value)}>
+              <option value="">Choose a country</option>
+              {/* Keep a geocoded country that isn't in the list selectable. */}
+              {addr.countryCode && !countries.data.some((c) => c.code === addr.countryCode) && <option value={addr.countryCode}>{addr.country || addr.countryCode}</option>}
+              {countries.data.map((c) => <option key={c.code} value={c.code}>{c.flag ? `${c.flag} ` : ''}{c.name}</option>)}
+            </select>
+          ) : <Skeleton className="h-11 w-full" />}
+        </div></div>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div><label className="label" htmlFor="lat">Latitude</label><input id="lat" type="number" step="0.000001" className="input" value={coords?.lat ?? ''} onChange={(e) => setCoords({ lat: Number(e.target.value), lng: coords?.lng ?? 0 })} onBlur={() => commit()} /></div>
         <div><label className="label" htmlFor="lng">Longitude</label><input id="lng" type="number" step="0.000001" className="input" value={coords?.lng ?? ''} onChange={(e) => setCoords({ lat: coords?.lat ?? 0, lng: Number(e.target.value) })} onBlur={() => commit()} /></div>

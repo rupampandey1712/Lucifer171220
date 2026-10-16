@@ -24,6 +24,7 @@ export type EarningsSummary = S['Payments.EarningsSummaryDto'];
 export type PayoutSummary = S['Payments.PayoutSummaryDto'];
 export type PayoutDto = S['Payments.PayoutDto'];
 export type PromotionDto = S['Booking.PromotionDto'];
+export type CountryDto = S['Search.CountryDto'];
 export type ReviewDto = S['Reviews.ReviewDto'];
 export type RatingSummary = S['Reviews.RatingSummaryDto'];
 export type ConversationDto = S['Engagement.ConversationDto'];
