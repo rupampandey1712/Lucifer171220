@@ -1,0 +1,700 @@
+{
+  "name": "REST Countries all",
+  "priority": 5,
+  "request": {
+    "method": "GET",
+    "urlPath": "/restcountries/v3.1/all"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": [
+      {
+        "cca2": "AR",
+        "name": {
+          "common": "Argentina"
+        },
+        "flag": "🇦🇷",
+        "currencies": {
+          "ARS": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "AU",
+        "name": {
+          "common": "Australia"
+        },
+        "flag": "🇦🇺",
+        "currencies": {
+          "AUD": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "AT",
+        "name": {
+          "common": "Austria"
+        },
+        "flag": "🇦🇹",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "BE",
+        "name": {
+          "common": "Belgium"
+        },
+        "flag": "🇧🇪",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "BR",
+        "name": {
+          "common": "Brazil"
+        },
+        "flag": "🇧🇷",
+        "currencies": {
+          "BRL": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "BG",
+        "name": {
+          "common": "Bulgaria"
+        },
+        "flag": "🇧🇬",
+        "currencies": {
+          "BGN": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "CA",
+        "name": {
+          "common": "Canada"
+        },
+        "flag": "🇨🇦",
+        "currencies": {
+          "CAD": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "CL",
+        "name": {
+          "common": "Chile"
+        },
+        "flag": "🇨🇱",
+        "currencies": {
+          "CLP": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "CN",
+        "name": {
+          "common": "China"
+        },
+        "flag": "🇨🇳",
+        "currencies": {
+          "CNY": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "CO",
+        "name": {
+          "common": "Colombia"
+        },
+        "flag": "🇨🇴",
+        "currencies": {
+          "COP": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "HR",
+        "name": {
+          "common": "Croatia"
+        },
+        "flag": "🇭🇷",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "CY",
+        "name": {
+          "common": "Cyprus"
+        },
+        "flag": "🇨🇾",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "CZ",
+        "name": {
+          "common": "Czechia"
+        },
+        "flag": "🇨🇿",
+        "currencies": {
+          "CZK": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "DK",
+        "name": {
+          "common": "Denmark"
+        },
+        "flag": "🇩🇰",
+        "currencies": {
+          "DKK": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "EG",
+        "name": {
+          "common": "Egypt"
+        },
+        "flag": "🇪🇬",
+        "currencies": {
+          "EGP": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "EE",
+        "name": {
+          "common": "Estonia"
+        },
+        "flag": "🇪🇪",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "FI",
+        "name": {
+          "common": "Finland"
+        },
+        "flag": "🇫🇮",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "FR",
+        "name": {
+          "common": "France"
+        },
+        "flag": "🇫🇷",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "DE",
+        "name": {
+          "common": "Germany"
+        },
+        "flag": "🇩🇪",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "GR",
+        "name": {
+          "common": "Greece"
+        },
+        "flag": "🇬🇷",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "HU",
+        "name": {
+          "common": "Hungary"
+        },
+        "flag": "🇭🇺",
+        "currencies": {
+          "HUF": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "IS",
+        "name": {
+          "common": "Iceland"
+        },
+        "flag": "🇮🇸",
+        "currencies": {
+          "ISK": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "IN",
+        "name": {
+          "common": "India"
+        },
+        "flag": "🇮🇳",
+        "currencies": {
+          "INR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "ID",
+        "name": {
+          "common": "Indonesia"
+        },
+        "flag": "🇮🇩",
+        "currencies": {
+          "IDR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "IE",
+        "name": {
+          "common": "Ireland"
+        },
+        "flag": "🇮🇪",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "IL",
+        "name": {
+          "common": "Israel"
+        },
+        "flag": "🇮🇱",
+        "currencies": {
+          "ILS": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "IT",
+        "name": {
+          "common": "Italy"
+        },
+        "flag": "🇮🇹",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "JP",
+        "name": {
+          "common": "Japan"
+        },
+        "flag": "🇯🇵",
+        "currencies": {
+          "JPY": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "KE",
+        "name": {
+          "common": "Kenya"
+        },
+        "flag": "🇰🇪",
+        "currencies": {
+          "KES": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "LV",
+        "name": {
+          "common": "Latvia"
+        },
+        "flag": "🇱🇻",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "LT",
+        "name": {
+          "common": "Lithuania"
+        },
+        "flag": "🇱🇹",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "LU",
+        "name": {
+          "common": "Luxembourg"
+        },
+        "flag": "🇱🇺",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "MY",
+        "name": {
+          "common": "Malaysia"
+        },
+        "flag": "🇲🇾",
+        "currencies": {
+          "MYR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "MT",
+        "name": {
+          "common": "Malta"
+        },
+        "flag": "🇲🇹",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "MX",
+        "name": {
+          "common": "Mexico"
+        },
+        "flag": "🇲🇽",
+        "currencies": {
+          "MXN": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "MA",
+        "name": {
+          "common": "Morocco"
+        },
+        "flag": "🇲🇦",
+        "currencies": {
+          "MAD": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "NL",
+        "name": {
+          "common": "Netherlands"
+        },
+        "flag": "🇳🇱",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "NZ",
+        "name": {
+          "common": "New Zealand"
+        },
+        "flag": "🇳🇿",
+        "currencies": {
+          "NZD": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "NO",
+        "name": {
+          "common": "Norway"
+        },
+        "flag": "🇳🇴",
+        "currencies": {
+          "NOK": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "PE",
+        "name": {
+          "common": "Peru"
+        },
+        "flag": "🇵🇪",
+        "currencies": {
+          "PEN": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "PH",
+        "name": {
+          "common": "Philippines"
+        },
+        "flag": "🇵🇭",
+        "currencies": {
+          "PHP": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "PL",
+        "name": {
+          "common": "Poland"
+        },
+        "flag": "🇵🇱",
+        "currencies": {
+          "PLN": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "PT",
+        "name": {
+          "common": "Portugal"
+        },
+        "flag": "🇵🇹",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "RO",
+        "name": {
+          "common": "Romania"
+        },
+        "flag": "🇷🇴",
+        "currencies": {
+          "RON": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "SG",
+        "name": {
+          "common": "Singapore"
+        },
+        "flag": "🇸🇬",
+        "currencies": {
+          "SGD": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "SK",
+        "name": {
+          "common": "Slovakia"
+        },
+        "flag": "🇸🇰",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "SI",
+        "name": {
+          "common": "Slovenia"
+        },
+        "flag": "🇸🇮",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "ZA",
+        "name": {
+          "common": "South Africa"
+        },
+        "flag": "🇿🇦",
+        "currencies": {
+          "ZAR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "ES",
+        "name": {
+          "common": "Spain"
+        },
+        "flag": "🇪🇸",
+        "currencies": {
+          "EUR": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "SE",
+        "name": {
+          "common": "Sweden"
+        },
+        "flag": "🇸🇪",
+        "currencies": {
+          "SEK": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "CH",
+        "name": {
+          "common": "Switzerland"
+        },
+        "flag": "🇨🇭",
+        "currencies": {
+          "CHF": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "TH",
+        "name": {
+          "common": "Thailand"
+        },
+        "flag": "🇹🇭",
+        "currencies": {
+          "THB": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "TR",
+        "name": {
+          "common": "Türkiye"
+        },
+        "flag": "🇹🇷",
+        "currencies": {
+          "TRY": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "AE",
+        "name": {
+          "common": "United Arab Emirates"
+        },
+        "flag": "🇦🇪",
+        "currencies": {
+          "AED": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "GB",
+        "name": {
+          "common": "United Kingdom"
+        },
+        "flag": "🇬🇧",
+        "currencies": {
+          "GBP": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "US",
+        "name": {
+          "common": "United States"
+        },
+        "flag": "🇺🇸",
+        "currencies": {
+          "USD": {
+            "name": "currency"
+          }
+        }
+      },
+      {
+        "cca2": "VN",
+        "name": {
+          "common": "Vietnam"
+        },
+        "flag": "🇻🇳",
+        "currencies": {
+          "VND": {
+            "name": "currency"
+          }
+        }
+      }
+    ]
+  }
+}

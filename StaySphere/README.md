@@ -100,8 +100,11 @@ docker compose --profile ai up -d
 docker compose exec ollama ollama pull llama3.2      # any tool-calling model
 AI_PROVIDER=Ollama AI_BASE_URL=http://ollama:11434 AI_MODEL=llama3.2 docker compose up -d api
 
-# Real public APIs (OpenStreetMap Nominatim, Open-Meteo, Frankfurter) instead of mocks
+# Real public APIs (OpenStreetMap Nominatim, Open-Meteo, Frankfurter, REST Countries) instead of mocks
 EXTERNAL_SERVICES_MODE=Live docker compose up -d api
+
+# The real API clients against WireMock stubs (no internet needed; admin UI at http://localhost:8089/__admin)
+docker compose -f docker-compose.yml -f docker-compose.wiremock.yml up -d
 ```
 
 ## Developing locally (hot reload)

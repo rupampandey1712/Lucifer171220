@@ -1,0 +1,21 @@
+# Runs the real external-API clients (Nominatim, Open-Meteo, Frankfurter, REST Countries) against WireMock stubs:
+# the same HTTP code paths as production (resilience, health tracking, JSON parsing) with no internet access.
+#   docker compose -f docker-compose.yml -f docker-compose.wiremock.yml up -d
+# Stubs live in infrastructure/wiremock/mappings; the WireMock admin UI is at http://localhost:8089/__admin.
+services:
+  wiremock:
+    image: wiremock/wiremock:3.9.2
+    command: ["--global-response-templating", "--disable-banner"]
+    volumes:
+      - ./infrastructure/wiremock/mappings:/home/wiremock/mappings:ro
+    ports: ["8089:8080"]
+
+  api:
+    environment:
+      ExternalServices__Mode: Live
+      ExternalServices__NominatimBaseUrl: http://wiremock:8080/nominatim/
+      ExternalServices__OpenMeteoBaseUrl: http://wiremock:8080/open-meteo/
+      ExternalServices__FrankfurterBaseUrl: http://wiremock:8080/frankfurter/
+      ExternalServices__RestCountriesBaseUrl: http://wiremock:8080/restcountries/
+    depends_on:
+      wiremock: { condition: service_started }

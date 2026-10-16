@@ -38,7 +38,17 @@ flowchart TB
 | Front Door / CDN | nginx in web container | — | — |
 | Azure OpenAI | **Ollama** | `IChatClient` (Microsoft.Extensions.AI) | `ScriptedChatClient` (tests) |
 | Payment provider | `LocalFakePaymentProvider` (in-process plus webhook emitter) | `IPaymentProvider` | — |
-| External public APIs | Built-in mocks (`EXTERNAL_SERVICES_MODE=Mock`, default) or the real free APIs (`=Live`) | `IGeocodingService`, `IWeatherService`, `ICurrencyService`, `ICountryService` | `Mock*Service` |
+| External public APIs | Built-in mocks (`EXTERNAL_SERVICES_MODE=Mock`, default), WireMock stubs (`docker-compose.wiremock.yml`) or the real free APIs (`=Live`) | `IGeocodingService`, `IWeatherService`, `ICurrencyService`, `ICountryService` | `Mock*Service` |
+
+## External APIs: three modes
+| Mode | How | What runs |
+|---|---|---|
+| Mock (default) | nothing to do | in-process `Mock*Service` classes; no HTTP at all |
+| WireMock | `docker compose -f docker-compose.yml -f docker-compose.wiremock.yml up -d` | the real HTTP clients (retries, circuit breaker, health tracking, JSON parsing) against stubs in `infrastructure/wiremock/mappings` |
+| Live | `EXTERNAL_SERVICES_MODE=Live` | the real free APIs (rate-limited, cached) |
+
+`WireMockStubTests` serves the same mapping files and runs the real clients against them, so the stubs can't drift
+from the parsers.
 
 ## Profiles
 - `docker compose up`: infrastructure + api + workers + web, in mock external mode.
