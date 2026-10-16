@@ -1619,6 +1619,81 @@ namespace StaySphere.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("StaySphere.Domain.Pricing.Promotion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("DaysBeforeCheckIn")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("HostId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int?>("MinNights")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<decimal>("PercentOff")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<Guid?>("PropertyId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateOnly?>("StayEnd")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("StayStart")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("ValidFrom")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("ValidTo")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HostId", "PropertyId")
+                        .HasDatabaseName("IX_Promotions_Active")
+                        .HasFilter("[IsActive] = 1");
+
+                    b.ToTable("Promotions", "pricing", t =>
+                        {
+                            t.HasCheckConstraint("CK_Promotions_Percent", "[PercentOff] > 0 AND [PercentOff] <= 50");
+
+                            t.HasCheckConstraint("CK_Promotions_Window", "[ValidTo] > [ValidFrom]");
+                        });
+                });
+
             modelBuilder.Entity("StaySphere.Domain.Reviews.Review", b =>
                 {
                     b.Property<Guid>("Id")

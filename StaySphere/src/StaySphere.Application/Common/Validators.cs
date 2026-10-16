@@ -251,7 +251,23 @@ public sealed class CreateCouponRequestValidator : AbstractValidator<CreateCoupo
     }
 }
 
+public sealed class CreatePromotionRequestValidator : AbstractValidator<CreatePromotionRequest>
+{
+    public CreatePromotionRequestValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(80);
+        RuleFor(x => x.Kind).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.PercentOff).GreaterThan(0).LessThanOrEqualTo(Domain.Pricing.Promotion.MaxPercentOff);
+        RuleFor(x => x.MinNights).InclusiveBetween(2, 90).When(x => x.MinNights is not null);
+        RuleFor(x => x.DaysBeforeCheckIn).InclusiveBetween(0, 365).When(x => x.DaysBeforeCheckIn is not null);
+    }
+}
+
 public sealed class AssistantMessageRequestValidator : AbstractValidator<AssistantMessageRequest>
 {
-    public AssistantMessageRequestValidator() => RuleFor(x => x.Message).NotEmpty().MaximumLength(1000);
+    public AssistantMessageRequestValidator()
+    {
+        RuleFor(x => x.Message).NotEmpty().MaximumLength(1000);
+        RuleFor(x => x.Agent).MaximumLength(30);
+    }
 }

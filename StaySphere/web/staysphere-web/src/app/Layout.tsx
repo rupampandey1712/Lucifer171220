@@ -167,7 +167,7 @@ export function HostLayout() {
   return (
     <RequireRole role="Host">
       <div className="container-page py-8">
-        <SideNav links={[['/host', 'Today'], ['/host/properties', 'Listings'], ['/host/calendar', 'Calendar'], ['/host/reservations', 'Reservations'], ['/host/earnings', 'Earnings'], ['/host/reviews', 'Reviews'], ['/host/analytics', 'Analytics']]} />
+        <SideNav links={[['/host', 'Today'], ['/host/properties', 'Listings'], ['/host/calendar', 'Calendar'], ['/host/reservations', 'Reservations'], ['/host/earnings', 'Earnings'], ['/host/promotions', 'Promotions'], ['/host/reviews', 'Reviews'], ['/host/analytics', 'Analytics']]} />
         <Outlet />
       </div>
     </RequireRole>

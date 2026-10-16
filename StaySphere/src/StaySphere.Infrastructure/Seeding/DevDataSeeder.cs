@@ -273,6 +273,9 @@ public sealed class DevDataSeeder(AppDbContext db, IPasswordHasher hasher, TimeP
 
         // Demo host: payout account (other hosts have none, so their earnings accumulate until they add one).
         db.PayoutAccounts.Add(PayoutAccount.Create(demoHost.Id, demoHost.DisplayName, "PT50000201231234567890154", "PT", now.AddDays(-200)).Value);
+        // A demo promotion on all of the demo host's listings (shows on the listing page and in the price breakdown).
+        db.Promotions.Add(Promotion.Create("Early bird", PromotionKind.EarlyBird, 10m, demoHost.Id, null, null, 60, null, null,
+            now.AddDays(-1), now.AddDays(365), demoHost.Id, now).Value);
 
         db.Coupons.Add(Coupon.Create("WELCOME10", 10, null, null, 0, now.AddDays(-30), now.AddYears(1), 10_000));
         db.Coupons.Add(Coupon.Create("SUMMER25", 25, null, null, 200, now.AddDays(-5), now.AddMonths(4), 500));

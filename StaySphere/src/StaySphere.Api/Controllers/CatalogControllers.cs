@@ -67,8 +67,14 @@ public sealed class PropertiesController(
     IPricingService pricing,
     IReviewService reviews,
     ISearchService search,
-    IWeatherService weather) : ApiControllerBase
+    IWeatherService weather,
+    IPromotionService promotions) : ApiControllerBase
 {
+    /// <summary>Promotions currently on offer for this listing (best first).</summary>
+    [HttpGet("{id:guid}/promotions")]
+    [AllowAnonymous]
+    public async Task<ActionResult<IReadOnlyList<PromotionDto>>> Promotions(Guid id, CancellationToken ct) => Ok(await promotions.ActiveForPropertyAsync(id, ct));
+
     [HttpGet("{id:guid}")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(PropertyDetailDto), StatusCodes.Status200OK)]

@@ -6,7 +6,8 @@ public sealed record NightlyRateDto(DateOnly Night, decimal Amount, string Reaso
 
 public sealed record QuoteDto(Guid PropertyId, DateOnly CheckIn, DateOnly CheckOut, int Guests, int Nights, string Currency,
     IReadOnlyList<NightlyRateDto> NightlyRates, decimal AverageNightly, decimal Accommodation, decimal Discount, decimal CleaningFee,
-    decimal ServiceFee, decimal Taxes, decimal Total, string QuoteToken, DateTimeOffset QuoteExpiresAt, bool Available);
+    decimal ServiceFee, decimal Taxes, decimal Total, string QuoteToken, DateTimeOffset QuoteExpiresAt, bool Available,
+    decimal PromotionDiscount = 0m, string? PromotionName = null);
 
 public sealed record AvailabilityDto(Guid PropertyId, DateOnly From, DateOnly To, IReadOnlyList<DateOnly> UnavailableDates, int MinNights);
 
@@ -31,3 +32,12 @@ public sealed record DeclineRequest(string? Reason);
 public sealed record CancelReservationRequest(string? Reason);
 
 public sealed record CancellationPreviewDto(Guid ReservationId, decimal RefundAmount, decimal NonRefundable, string Currency, string Explanation);
+
+/// <param name="Kind">EarlyBird, LastMinute, LongStay or FlashSale.</param>
+/// <param name="PropertyId">Hosts: one of your listings, or null for all your listings. Admins: null = platform-wide.</param>
+public sealed record CreatePromotionRequest(string Name, string Kind, decimal PercentOff, Guid? PropertyId, int? MinNights,
+    int? DaysBeforeCheckIn, DateOnly? StayStart, DateOnly? StayEnd, DateTimeOffset? ValidFrom, DateTimeOffset ValidTo);
+
+public sealed record PromotionDto(Guid Id, string Name, string Kind, decimal PercentOff, Guid? HostId, Guid? PropertyId, string? PropertyTitle,
+    int? MinNights, int? DaysBeforeCheckIn, DateOnly? StayStart, DateOnly? StayEnd, DateTimeOffset ValidFrom, DateTimeOffset ValidTo,
+    bool IsActive, string Summary);

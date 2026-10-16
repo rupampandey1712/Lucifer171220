@@ -43,6 +43,17 @@ describe('PriceBreakdown', () => {
   });
 });
 
+describe('PriceBreakdown with a promotion', () => {
+  it('shows the promotion separately from other discounts', () => {
+    const quote = { nights: 7, currency: 'EUR', averageNightly: 100, accommodation: 700, discount: 140, promotionDiscount: 70, promotionName: 'Early bird',
+      cleaningFee: 0, serviceFee: 67.2, taxes: 0, total: 627.2 } as QuoteDto;
+    renderWithProviders(<PriceBreakdown quote={quote} />);
+    expect(screen.getByText('Promotion: Early bird')).toBeInTheDocument();
+    expect(screen.getByText('Discounts')).toBeInTheDocument();
+    expect(screen.getAllByText(/−€70/)).toHaveLength(2);
+  });
+});
+
 describe('AvailabilityCalendar', () => {
   it('disables unavailable nights and selects a range', async () => {
     const blocked = format(addDays(new Date(), 5), 'yyyy-MM-dd');

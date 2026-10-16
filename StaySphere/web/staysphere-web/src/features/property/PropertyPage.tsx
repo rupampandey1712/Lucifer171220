@@ -1,10 +1,10 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
-import { Bath, BedDouble, CalendarX2, Clock, CloudSun, DoorOpen, Heart, MessageSquare, PawPrint, Share, ShieldCheck, Users, Zap } from 'lucide-react';
+import { BadgePercent, Bath, BedDouble, CalendarX2, Clock, CloudSun, DoorOpen, Heart, MessageSquare, PawPrint, Share, ShieldCheck, Users, Zap } from 'lucide-react';
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { api, ApiError, newIdempotencyKey, toQuery } from '@/api/client';
-import type { AvailabilityDto, Paged, PropertyCard as Card, PropertyDetail, QuoteDto, RatingSummary, ReservationDto, ReviewDto, WeatherResult } from '@/api/types';
+import type { AvailabilityDto, Paged, PropertyCard as Card, PropertyDetail, PromotionDto, QuoteDto, RatingSummary, ReservationDto, ReviewDto, WeatherResult } from '@/api/types';
 import { AvailabilityCalendar } from '@/components/AvailabilityCalendar';
 import { PriceBreakdown } from '@/components/PriceBreakdown';
 import { PropertyCard } from '@/components/PropertyCard';
@@ -166,6 +166,21 @@ function Availability({ propertyId, checkIn, checkOut, onChange }: { propertyId:
   return <AvailabilityCalendar unavailable={availability.data!.unavailableDates} checkIn={checkIn} checkOut={checkOut} onChange={onChange} />;
 }
 
+/** Promotions on offer for this listing. Informational: the server applies the best eligible one to the quote. */
+function Deals({ propertyId }: { propertyId: string }) {
+  const deals = useQuery({ queryKey: ['promotions', propertyId], queryFn: () => api<PromotionDto[]>(`/properties/${propertyId}/promotions`), staleTime: 5 * 60_000, retry: false });
+  if (!deals.data?.length) return null;
+  return (
+    <ul className="mb-4 space-y-1.5" aria-label="Deals on this stay">
+      {deals.data.map((d) => (
+        <li key={d.id} className="flex items-start gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          <BadgePercent className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> <span><strong>{d.name}:</strong> {d.summary}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function BookingWidget({ p, checkIn, checkOut, onDates }: { p: PropertyDetail; checkIn: string; checkOut: string; onDates: (a: string, b: string) => void }) {
   const [params] = useSearchParams();
   const [guests, setGuests] = useState(Math.min(Number(params.get('guests') ?? 1), p.maxGuests));
@@ -203,6 +218,7 @@ function BookingWidget({ p, checkIn, checkOut, onDates }: { p: PropertyDetail; c
   return (
     <div className="card p-6">
       <p className="mb-4"><span className="text-2xl font-bold">{money(quote.data?.averageNightly ?? p.basePrice, p.currency)}</span> <span className="text-slate-600">night</span></p>
+      <Deals propertyId={p.id} />
       <div className="overflow-hidden rounded-xl border border-slate-300">
         <div className="grid grid-cols-2 divide-x divide-slate-300">
           <label className="p-3"><span className="block text-[10px] font-bold uppercase">Check-in</span><input type="date" className="w-full text-sm outline-none" value={checkIn} onChange={(e) => onDates(e.target.value, checkOut > e.target.value ? checkOut : '')} /></label>

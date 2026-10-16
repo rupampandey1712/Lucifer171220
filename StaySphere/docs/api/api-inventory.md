@@ -87,6 +87,9 @@ The **RL** column gives the rate-limit policy.
 | PUT | /host/payout-account `{accountHolder, iban, country}` | Host | |
 | POST | /host/payouts (pay out available balance now) | Host, RL `payment` | ✅ |
 | GET | /admin/payouts | Admin | |
+| GET, POST | /host/promotions; POST /host/promotions/{id}/deactivate | Host (own listings only) | |
+| GET, POST | /admin/promotions; POST /admin/promotions/{id}/deactivate | Admin (platform-wide) | |
+| GET | /properties/{id}/promotions | Anon | |
 
 ## Reviews, favorites, messaging, notifications
 | Method | Path | Access |

@@ -28,6 +28,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<HostPayout> HostPayouts => Set<HostPayout>();
     public DbSet<WebhookEvent> WebhookEvents => Set<WebhookEvent>();
     public DbSet<Coupon> Coupons => Set<Coupon>();
+    public DbSet<Promotion> Promotions => Set<Promotion>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<Favorite> Favorites => Set<Favorite>();
     public DbSet<Conversation> Conversations => Set<Conversation>();

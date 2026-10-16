@@ -154,8 +154,20 @@ public sealed class SupportController(ISupportService support) : ApiControllerBa
 [Route("api/v{version:apiVersion}/host")]
 [Authorize(Policy = Policies.CanManageProperty)]
 public sealed class HostController(IPropertyService properties, IReservationService reservations, IPaymentService payments, IReviewService reviews,
-    IHostDashboardService dashboard, IBookingRequestService requests, IPayoutService payouts) : ApiControllerBase
+    IHostDashboardService dashboard, IBookingRequestService requests, IPayoutService payouts, IPromotionService promotions) : ApiControllerBase
 {
+    /// <summary>The host's own promotions (automatic discounts: early bird, last minute, long stay, flash sale).</summary>
+    [HttpGet("promotions")]
+    public async Task<ActionResult<IReadOnlyList<PromotionDto>>> Promotions(CancellationToken ct) => Ok(await promotions.ListMineAsync(false, ct));
+
+    /// <summary>Create a promotion for one of your listings (propertyId) or all of them (propertyId = null).</summary>
+    [HttpPost("promotions")]
+    public async Task<ActionResult<PromotionDto>> CreatePromotion(CreatePromotionRequest request, CancellationToken ct) =>
+        FromResult(await promotions.CreateAsync(request, false, ct));
+
+    [HttpPost("promotions/{id:guid}/deactivate")]
+    public async Task<IActionResult> DeactivatePromotion(Guid id, CancellationToken ct) => FromResult(await promotions.DeactivateAsync(id, ct));
+
     /// <summary>Accept a request-to-book: captures the authorized payment and confirms the stay.</summary>
     [HttpPost("reservations/{id:guid}/accept")]
     [Idempotent("host.accept")]
@@ -203,7 +215,7 @@ public sealed class HostController(IPropertyService properties, IReservationServ
 
 [Route("api/v{version:apiVersion}/admin")]
 [Authorize(Policy = Policies.CanViewAdminDashboard)]
-public sealed class AdminController(IAdminService admin, IReviewService reviews, IPaymentService payments) : ApiControllerBase
+public sealed class AdminController(IAdminService admin, IReviewService reviews, IPaymentService payments, IPromotionService promotions) : ApiControllerBase
 {
     [HttpGet("dashboard")]
     public async Task<ActionResult<AdminDashboardDto>> Dashboard(CancellationToken ct) => Ok(await admin.DashboardAsync(ct));
@@ -287,6 +299,17 @@ public sealed class AdminController(IAdminService admin, IReviewService reviews,
 
     [HttpPost("coupons/{id:guid}/deactivate")]
     public async Task<IActionResult> DeactivateCoupon(Guid id, CancellationToken ct) => FromResult(await admin.DeactivateCouponAsync(id, ct));
+
+    /// <summary>Platform-wide promotions (apply to every listing).</summary>
+    [HttpGet("promotions")]
+    public async Task<ActionResult<IReadOnlyList<PromotionDto>>> Promotions(CancellationToken ct) => Ok(await promotions.ListMineAsync(true, ct));
+
+    [HttpPost("promotions")]
+    public async Task<ActionResult<PromotionDto>> CreatePromotion(CreatePromotionRequest request, CancellationToken ct) =>
+        FromResult(await promotions.CreateAsync(request, true, ct));
+
+    [HttpPost("promotions/{id:guid}/deactivate")]
+    public async Task<IActionResult> DeactivatePromotion(Guid id, CancellationToken ct) => FromResult(await promotions.DeactivateAsync(id, ct));
 }
 
 [Route("api/v{version:apiVersion}/ai")]

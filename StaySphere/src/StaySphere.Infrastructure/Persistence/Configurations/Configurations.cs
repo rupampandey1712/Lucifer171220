@@ -179,6 +179,27 @@ internal sealed class BlockedDateConfiguration : IEntityTypeConfiguration<Blocke
     }
 }
 
+internal sealed class PromotionConfiguration : IEntityTypeConfiguration<Promotion>
+{
+    public void Configure(EntityTypeBuilder<Promotion> b)
+    {
+        b.ToTable("Promotions", "pricing", t =>
+        {
+            t.HasCheckConstraint("CK_Promotions_Percent", "[PercentOff] > 0 AND [PercentOff] <= 50");
+            t.HasCheckConstraint("CK_Promotions_Window", "[ValidTo] > [ValidFrom]");
+        });
+        b.HasKey(x => x.Id);
+        b.Property(x => x.Id).ValueGeneratedNever();
+        b.Property(x => x.Name).HasMaxLength(80).IsRequired();
+        b.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20);
+        b.Property(x => x.PercentOff).HasPrecision(5, 2);
+        b.Property(x => x.RowVersion).IsRowVersion();
+        b.Ignore(x => x.DomainEvents);
+        // Pricing looks up active promotions per host and per listing on every quote.
+        b.HasIndex(x => new { x.HostId, x.PropertyId }).HasFilter("[IsActive] = 1").HasDatabaseName("IX_Promotions_Active");
+    }
+}
+
 internal sealed class CouponConfiguration : IEntityTypeConfiguration<Coupon>
 {
     public void Configure(EntityTypeBuilder<Coupon> b)

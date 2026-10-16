@@ -16,9 +16,11 @@ public sealed record PriceBreakdown(
     decimal CleaningFee,
     decimal ServiceFee,
     decimal Taxes,
-    decimal Total)
+    decimal Total,
+    decimal PromotionDiscount = 0m,
+    string? PromotionName = null)
 {
-    public decimal Discount => LengthOfStayDiscount + CouponDiscount;
+    public decimal Discount => LengthOfStayDiscount + PromotionDiscount + CouponDiscount;
     public decimal AverageNightly => Nights == 0 ? 0 : decimal.Round(Accommodation / Nights, 2);
 }
 
@@ -30,13 +32,13 @@ public sealed record PricingSettings(decimal ServiceFeePercent, decimal HostFeeP
 /// <summary>
 /// Server-authoritative price calculation. Pure function of property pricing data + stay + coupon so it is
 /// trivially unit-testable and cannot be influenced by the client.
-/// Order: nightly (seasonal or base, weekend adjusted) → length-of-stay discount → coupon → cleaning →
+/// Order: nightly (seasonal or base, weekend adjusted) → length-of-stay discount → best promotion → coupon → cleaning →
 /// service fee on (accommodation − discounts + cleaning) → taxes on the same base → total.
 /// </summary>
 public static class PriceCalculator
 {
     public static Result<PriceBreakdown> Calculate(Property property, DateRange stay, Coupon? coupon,
-        PricingSettings settings, decimal taxPercent, DateTimeOffset now)
+        PricingSettings settings, decimal taxPercent, DateTimeOffset now, IReadOnlyList<Promotion>? promotions = null)
     {
         if (stay.Nights < property.MinNights)
             return Error.Validation("pricing.min_nights", $"This place has a minimum stay of {property.MinNights} nights.");
@@ -63,22 +65,28 @@ public static class PriceCalculator
             : 0m;
         var losDiscount = Round(accommodation * losPercent / 100m);
 
+        // Promotions never stack with each other: the guest gets the single best eligible one.
+        var best = promotions?.Where(p => p.AppliesTo(property, stay, now))
+            .OrderByDescending(p => p.PercentOff).ThenBy(p => p.Id).FirstOrDefault();
+        var promotionDiscount = best is null ? 0m : Round((accommodation - losDiscount) * best.PercentOff / 100m);
+
         var couponDiscount = 0m;
+        var afterPromotions = accommodation - losDiscount - promotionDiscount;
         if (coupon is not null)
         {
-            var valid = coupon.Validate(now, accommodation - losDiscount, property.Currency);
+            var valid = coupon.Validate(now, afterPromotions, property.Currency);
             if (valid.IsFailure) return valid.Error!;
-            couponDiscount = coupon.DiscountFor(accommodation - losDiscount);
+            couponDiscount = coupon.DiscountFor(afterPromotions);
         }
 
         var cleaning = Round(property.CleaningFee);
-        var feeBase = accommodation - losDiscount - couponDiscount + cleaning;
+        var feeBase = afterPromotions - couponDiscount + cleaning;
         var serviceFee = Round(feeBase * settings.ServiceFeePercent / 100m);
         var taxes = Round(feeBase * taxPercent / 100m);
         var total = feeBase + serviceFee + taxes;
 
         return new PriceBreakdown(property.Currency, stay.Nights, rates, accommodation, losDiscount, couponDiscount,
-            cleaning, serviceFee, taxes, Round(total));
+            cleaning, serviceFee, taxes, Round(total), promotionDiscount, best?.Name);
     }
 
     private static decimal Round(decimal value) => decimal.Round(value, 2, MidpointRounding.ToEven);

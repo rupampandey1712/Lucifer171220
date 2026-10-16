@@ -130,8 +130,9 @@ public sealed class PricingService(IAppDbContext db, IQuoteTokenService quoteTok
         }
 
         var now = clock.GetUtcNow();
+        var promotions = await PromotionQueries.CandidatesAsync(db, property, now, ct);
         var price = PriceCalculator.Calculate(property, stay.Value, coupon, PricingSettings.Default,
-            taxes.GetTaxPercent(property.Address?.CountryCode ?? ""), now);
+            taxes.GetTaxPercent(property.Address?.CountryCode ?? ""), now, promotions);
         if (price.IsFailure) return price.Error!;
 
         var s = stay.Value;
@@ -144,7 +145,7 @@ public sealed class PricingService(IAppDbContext db, IQuoteTokenService quoteTok
             coupon?.Code, expires));
         return new QuoteDto(propertyId, s.Start, s.End, request.Guests, b.Nights, b.Currency,
             b.NightlyRates.Select(r => new NightlyRateDto(r.Night, r.Amount, r.Reason)).ToList(), b.AverageNightly, b.Accommodation,
-            b.Discount, b.CleaningFee, b.ServiceFee, b.Taxes, b.Total, token, expires, available);
+            b.Discount, b.CleaningFee, b.ServiceFee, b.Taxes, b.Total, token, expires, available, b.PromotionDiscount, b.PromotionName);
     }
 }
 
@@ -182,8 +183,10 @@ public sealed class ReservationService(
         if (quote.CouponCode is not null)
             coupon = await db.Coupons.FirstOrDefaultAsync(c => c.Code == quote.CouponCode, ct);
 
+        // Same promotions as the quote; if one ended in between, the totals differ and the guest re-quotes.
+        var promotions = await PromotionQueries.CandidatesAsync(db, property, now, ct);
         var price = PriceCalculator.Calculate(property, stay.Value, coupon, PricingSettings.Default,
-            taxes.GetTaxPercent(property.Address?.CountryCode ?? ""), now);
+            taxes.GetTaxPercent(property.Address?.CountryCode ?? ""), now, promotions);
         if (price.IsFailure) return price.Error!;
         if (price.Value.Total != quote.Total)
             return Error.Conflict("reservation.price_changed", "The price for these dates has changed. Please review the new price.");

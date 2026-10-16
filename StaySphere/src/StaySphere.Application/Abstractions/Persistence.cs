@@ -31,6 +31,7 @@ public interface IAppDbContext
     DbSet<HostPayout> HostPayouts { get; }
     DbSet<WebhookEvent> WebhookEvents { get; }
     DbSet<Coupon> Coupons { get; }
+    DbSet<Promotion> Promotions { get; }
     DbSet<Review> Reviews { get; }
     DbSet<Favorite> Favorites { get; }
     DbSet<Conversation> Conversations { get; }

@@ -5,7 +5,9 @@ import { money } from '@/lib/format';
 export function PriceBreakdown({ quote }: { quote: QuoteDto }) {
   const c = quote.currency;
   const rows: [string, number][] = [[`${money(quote.averageNightly, c)} × ${quote.nights} night${quote.nights === 1 ? '' : 's'}`, quote.accommodation]];
-  if (quote.discount > 0) rows.push(['Discounts', -quote.discount]);
+  const promotion = quote.promotionDiscount ?? 0;
+  if (promotion > 0) rows.push([quote.promotionName ? `Promotion: ${quote.promotionName}` : 'Promotion', -promotion]);
+  if (quote.discount - promotion > 0) rows.push(['Discounts', -(quote.discount - promotion)]);
   if (quote.cleaningFee > 0) rows.push(['Cleaning fee', quote.cleaningFee]);
   rows.push(['StaySphere service fee', quote.serviceFee]);
   if (quote.taxes > 0) rows.push(['Taxes', quote.taxes]);
