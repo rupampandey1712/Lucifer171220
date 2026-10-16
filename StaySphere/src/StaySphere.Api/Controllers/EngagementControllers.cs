@@ -299,6 +299,11 @@ public sealed class AiController(IAssistantService assistant) : ApiControllerBas
     [EnableRateLimiting(RateLimitPolicies.Ai)]
     public async Task<ActionResult<AssistantReplyDto>> Send(AssistantMessageRequest request, CancellationToken ct) => FromResult(await assistant.SendAsync(request, ct));
 
+    /// <summary>The assistants the caller may use (travel and recommendations for everyone; support when signed in; host and admin by role).</summary>
+    [HttpGet("agents")]
+    [AllowAnonymous]
+    public ActionResult<IReadOnlyList<AgentInfoDto>> Agents() => Ok(assistant.AvailableAgents());
+
     /// <summary>Human-in-the-loop gate: executes (or rejects) an action the assistant proposed.</summary>
     [HttpPost("actions/{actionId:guid}/confirm")]
     [Authorize]

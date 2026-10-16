@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using StaySphere.Application.Abstractions;
 using StaySphere.Application.Common;
@@ -80,6 +81,25 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     {
         var (client, _) = await RegisterAsync("Test Host");
         var response = await client.PostAsync("/api/v1/me/become-host", null);
+        response.EnsureSuccessStatusCode();
+        var auth = (await response.Content.ReadFromJsonAsync<AuthResponse>(Json.Options))!;
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
+        return (client, auth);
+    }
+
+    /// <summary>Registers a user, grants the Admin role in the database, and logs in again so the token carries the role.</summary>
+    public async Task<(HttpClient Client, AuthResponse Auth)> RegisterAdminAsync()
+    {
+        var (_, registered) = await RegisterAsync("Test Admin");
+        await WithScopeAsync(async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            var user = await db.Users.Include(u => u.Roles).FirstAsync(u => u.Id == registered.User.Id);
+            user.AddRole(StaySphere.Domain.Identity.Roles.Admin);
+            await db.SaveChangesAsync();
+        });
+        var client = CreateClient();
+        var response = await client.PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(registered.User.Email, "Str0ngPassword!"));
         response.EnsureSuccessStatusCode();
         var auth = (await response.Content.ReadFromJsonAsync<AuthResponse>(Json.Options))!;
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);

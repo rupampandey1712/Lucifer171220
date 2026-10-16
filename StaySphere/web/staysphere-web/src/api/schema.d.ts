@@ -1309,6 +1309,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ai/agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The assistants the caller may use (travel and recommendations for everyone; support when signed in; host and admin by role). */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Ai.AgentInfoDto"][];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai/actions/{actionId}/confirm": {
         parameters: {
             query?: never;
@@ -6619,10 +6677,18 @@ export interface components {
             /** Format: double */
             value: number;
         };
+        "Ai.AgentInfoDto": {
+            key: string;
+            name: string;
+            displayName: string;
+            description: string;
+            tools: string[];
+        };
         "Ai.AssistantMessageRequest": {
             /** Format: uuid */
             conversationId?: string | null;
             message: string;
+            agent?: string | null;
         };
         "Ai.AssistantPropertySuggestionDto": {
             /** Format: uuid */
@@ -6650,6 +6716,7 @@ export interface components {
             pendingAction?: components["schemas"]["Ai.PendingActionDto"];
             toolsUsed: string[];
             provider: string;
+            agent: string;
         };
         "Ai.ConfirmActionRequest": {
             approve: boolean;

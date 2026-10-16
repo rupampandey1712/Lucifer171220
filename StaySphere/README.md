@@ -71,7 +71,7 @@ Everything runs locally with emulators or in-process stand-ins. The Azure resour
 
 ### AI assistant (Gemini by default)
 
-The "Ask AI" assistant is a Microsoft Agent Framework agent that searches real listings through tools and never books without your confirmation. It uses **Google Gemini** by default:
+The "Ask AI" assistant is a team of Microsoft Agent Framework agents: **travel**, **recommendations**, **support** (signed in), **host** (hosts) and **admin analytics** (admins). They act only through tools and never book or cancel without your confirmation. It uses **Google Gemini** by default:
 
 1. Get a free API key at https://aistudio.google.com/apikey.
 2. Docker: put `GEMINI_API_KEY=...` in `StaySphere/.env` (git-ignored) and run `docker compose up -d api`.

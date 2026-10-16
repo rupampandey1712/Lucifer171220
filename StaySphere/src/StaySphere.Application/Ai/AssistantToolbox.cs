@@ -3,6 +3,8 @@ using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using StaySphere.Application.Abstractions;
+using StaySphere.Application.Admin;
+using StaySphere.Application.Payments;
 using StaySphere.Application.Booking;
 using StaySphere.Application.Catalog;
 using StaySphere.Application.Common;
@@ -12,6 +14,7 @@ using StaySphere.Contracts.Ai;
 using StaySphere.Contracts.Booking;
 using StaySphere.Contracts.Search;
 using StaySphere.Contracts.Support;
+using StaySphere.Domain.Identity;
 using StaySphere.Domain.Platform;
 
 namespace StaySphere.Application.Ai;
@@ -37,6 +40,9 @@ public sealed class AssistantToolbox(
     IReservationService reservations,
     ISupportService support,
     IWeatherService weather,
+    IHostDashboardService hostDashboard,
+    IPayoutService payouts,
+    IAdminService admin,
     IAppDbContext db,
     ICurrentUser currentUser,
     TimeProvider clock)
@@ -197,6 +203,143 @@ public sealed class AssistantToolbox(
         return w is null ? Error("Weather is unavailable right now.") : JsonSerializer.Serialize(w.Daily.Take(7), Json.Options);
     }
 
+    // ---------- Recommendation agent ----------
+
+    [Description("Find published stays similar to a given property (same area, type and price band).")]
+    public async Task<string> RecommendSimilar([Description("Property id (GUID)")] string propertyId, CancellationToken ct = default)
+    {
+        State.ToolsUsed.Add(nameof(RecommendSimilar));
+        if (!Guid.TryParse(propertyId, out var id)) return Error("Invalid property id.");
+        var similar = await search.SimilarAsync(id, ct);
+        foreach (var p in similar.Take(6))
+            if (State.Suggestions.All(s => s.Id != p.Id))
+                State.Suggestions.Add(new AssistantPropertySuggestionDto(p.Id, p.Title, p.City, p.Country, p.NightlyPrice, p.Currency, p.TotalPrice,
+                    p.RatingAverage, p.ReviewCount, p.ImageUrls.Count > 0 ? p.ImageUrls[0] : null,
+                    string.Create(CultureInfo.InvariantCulture, $"similar {p.PropertyType.ToLowerInvariant()} in {p.City}, {p.RatingAverage:0.0}★")));
+        return JsonSerializer.Serialize(similar.Take(6).Select(p => new
+        {
+            p.Id, p.Title, p.City, nightly = p.NightlyPrice, p.Currency, rating = p.RatingAverage, reviews = p.ReviewCount, p.PropertyType, p.Bedrooms,
+        }), Json.Options);
+    }
+
+    // ---------- Host agent (host's own data only: the services scope every query to the current host) ----------
+
+    [Description("The host's dashboard: bookings, revenue, occupancy, rating and per-listing performance.")]
+    public async Task<string> GetHostDashboard(CancellationToken ct = default)
+    {
+        State.ToolsUsed.Add(nameof(GetHostDashboard));
+        if (!IsHost) return Error("Only hosts can use this.");
+        var d = await hostDashboard.GetAsync(ct);
+        return JsonSerializer.Serialize(new
+        {
+            d.TotalBookings, d.Revenue, d.Currency, d.UpcomingReservations, occupancyPercent = Math.Round(d.OccupancyRate * 100, 1),
+            d.AverageNightlyPrice, d.Rating,
+            listings = d.Properties.Select(p => new { p.Title, p.Bookings, p.Revenue, occupancyPercent = Math.Round(p.OccupancyRate * 100, 1), p.Rating }),
+        }, Json.Options);
+    }
+
+    [Description("The host's listings with status, price, rating and upcoming reservations.")]
+    public async Task<string> GetHostListings(CancellationToken ct = default)
+    {
+        State.ToolsUsed.Add(nameof(GetHostListings));
+        if (!IsHost) return Error("Only hosts can use this.");
+        var list = await properties.ListForHostAsync(ct);
+        return JsonSerializer.Serialize(list.Select(p => new
+        {
+            p.Id, p.Title, p.Status, p.City, price = p.BasePrice, p.Currency, rating = p.RatingAverage, reviews = p.ReviewCount, p.UpcomingReservations,
+            completePercent = p.CompletionPercent,
+        }), Json.Options);
+    }
+
+    [Description("The host's reservations. scope: requests (awaiting the host's answer), upcoming, past or cancelled.")]
+    public async Task<string> GetHostReservations(string scope = "upcoming", CancellationToken ct = default)
+    {
+        State.ToolsUsed.Add(nameof(GetHostReservations));
+        if (!IsHost) return Error("Only hosts can use this.");
+        var allowed = new[] { "requests", "upcoming", "past", "cancelled" };
+        var s = allowed.Contains(scope, StringComparer.OrdinalIgnoreCase) ? scope.ToLowerInvariant() : "upcoming";
+        var page = await reservations.ListForHostAsync(s, 1, 10, ct);
+        return JsonSerializer.Serialize(page.Items.Select(r => new
+        {
+            r.Id, r.PropertyTitle, guest = r.GuestName, r.CheckIn, r.CheckOut, r.Guests, r.Status, total = r.TotalAmount, r.Currency, r.ApprovalDeadline,
+        }), Json.Options);
+    }
+
+    [Description("The host's earnings balances per currency (available, pending, paid out) and recent payouts.")]
+    public async Task<string> GetHostEarnings(CancellationToken ct = default)
+    {
+        State.ToolsUsed.Add(nameof(GetHostEarnings));
+        if (!IsHost) return Error("Only hosts can use this.");
+        var summary = await payouts.GetSummaryAsync(ct);
+        return JsonSerializer.Serialize(new
+        {
+            balances = summary.Balances,
+            recentPayouts = summary.Payouts.Take(5).Select(p => new { p.Amount, p.Currency, p.Status, p.CreatedAt }),
+            hasPayoutAccount = summary.Account is not null,
+        }, Json.Options);
+    }
+
+    // ---------- Support agent ----------
+
+    [Description("Explain what the user would be refunded if they cancelled a reservation now (server-side policy calculation).")]
+    public async Task<string> PreviewCancellation([Description("Reservation id (GUID)")] string reservationId, CancellationToken ct = default)
+    {
+        State.ToolsUsed.Add(nameof(PreviewCancellation));
+        if (!currentUser.IsAuthenticated) return Error("The user must sign in.");
+        if (!Guid.TryParse(reservationId, out var id)) return Error("Invalid reservation id.");
+        var preview = await reservations.PreviewCancellationAsync(id, ct);
+        return preview.IsSuccess ? JsonSerializer.Serialize(preview.Value, Json.Options) : Error(preview.Error!.Message);
+    }
+
+    [Description("Prepare a cancellation for the user. This does NOT cancel: it creates a proposal the user must confirm with a button. Always tell the user the refund and ask them to confirm.")]
+    public async Task<string> ProposeCancellation([Description("Reservation id (GUID)")] string reservationId, CancellationToken ct = default)
+    {
+        State.ToolsUsed.Add(nameof(ProposeCancellation));
+        if (!currentUser.IsAuthenticated) return Error("The user must sign in.");
+        if (!Guid.TryParse(reservationId, out var id)) return Error("Invalid reservation id.");
+        // Same authorization and policy as the Cancel button: 404 for someone else's reservation, 409 if it can't be cancelled.
+        var preview = await reservations.PreviewCancellationAsync(id, ct);
+        if (preview.IsFailure) return Error(preview.Error!.Message);
+        var title = await db.Reservations.Where(r => r.Id == id).Join(db.Properties, r => r.PropertyId, p => p.Id, (r, p) => p.Title).FirstAsync(ct);
+        var pv = preview.Value;
+        var summary = string.Create(CultureInfo.InvariantCulture,
+            $"Cancel your stay at {title}. Refund {pv.Currency} {pv.RefundAmount:N2}; non-refundable {pv.Currency} {pv.NonRefundable:N2}. {pv.Explanation}");
+        var action = AiPendingAction.Create(currentUser.RequireUserId(), nameof(ProposeCancellation),
+            JsonSerializer.Serialize(new ProposedCancellation(id), Json.Options), summary, clock.GetUtcNow());
+        db.AiPendingActions.Add(action);
+        await db.SaveChangesAsync(ct);
+        State.PendingAction = new PendingActionDto(action.Id, "reservation_cancellation", summary, action.ExpiresAt);
+        return JsonSerializer.Serialize(new { status = "awaiting_user_confirmation", summary }, Json.Options);
+    }
+
+    // ---------- Admin analytics agent ----------
+
+    [Description("Platform metrics: users, hosts, properties, bookings, revenue, refunds, cancellation rate, open reports/tickets and 30-day trends.")]
+    public async Task<string> GetPlatformStats(CancellationToken ct = default)
+    {
+        State.ToolsUsed.Add(nameof(GetPlatformStats));
+        if (!currentUser.IsInRole(Roles.Admin)) return Error("Only administrators can use this.");
+        var d = await admin.DashboardAsync(ct);
+        return JsonSerializer.Serialize(new
+        {
+            d.Users, d.Hosts, d.Properties, d.PublishedProperties, d.Bookings, d.Revenue, d.Refunds, d.Currency,
+            cancellationRatePercent = Math.Round(d.CancellationRate * 100, 1), d.OpenReports, d.OpenTickets, d.FraudAlerts,
+            bookingsLast7Days = d.DailyBookings.TakeLast(7).Sum(p => p.Value), bookingsPrevious7Days = d.DailyBookings.SkipLast(7).TakeLast(7).Sum(p => p.Value),
+            revenueLast7Days = d.DailyRevenue.TakeLast(7).Sum(p => p.Value), newUsersLast7Days = d.NewUsers.TakeLast(7).Sum(p => p.Value),
+        }, Json.Options);
+    }
+
+    [Description("The most recent unacknowledged fraud/risk alerts.")]
+    public async Task<string> GetFraudAlerts(CancellationToken ct = default)
+    {
+        State.ToolsUsed.Add(nameof(GetFraudAlerts));
+        if (!currentUser.IsInRole(Roles.Admin)) return Error("Only administrators can use this.");
+        var page = await admin.FraudAlertsAsync(1, 10, ct);
+        return JsonSerializer.Serialize(page.Items.Where(a => !a.Acknowledged).Select(a => new { a.RuleCode, a.Score, a.Decision, a.Details, a.CreatedAt }), Json.Options);
+    }
+
+    private bool IsHost => currentUser.IsInRole(Roles.Host) || currentUser.IsInRole(Roles.Admin);
+
     private static DateOnly? ParseDate(string? value) =>
         DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
 
@@ -204,3 +347,5 @@ public sealed class AssistantToolbox(
 }
 
 public sealed record ProposedReservation(Guid PropertyId, DateOnly CheckIn, DateOnly CheckOut, int Guests);
+
+public sealed record ProposedCancellation(Guid ReservationId);

@@ -44,13 +44,20 @@ flowchart TB
 
 ## Agents
 
-| Agent | Who | Tools | Notes |
+Defined in `src/StaySphere.Application/Ai/Agents.cs` (`AgentCatalog`). The client picks one with `agent` on
+`POST /ai/messages`; `GET /ai/agents` returns the ones the caller may use. The server refuses an agent the caller may not
+use (401/403), the model only ever sees that agent's tools, and privileged tools re-check the role themselves.
+
+| Agent (`key`) | Who | Tools | Notes |
 |---|---|---|---|
-| TravelAssistantAgent | any user | search, details, availability, price, weather, reservation hold ⚠, my reservations | orchestrates; can delegate to PropertyRecommendationAgent |
-| PropertyRecommendationAgent | internal | search, details, reviews summary | ranks and explains ("why recommended"), compares properties |
-| HostAssistantAgent | Host | own listings insights, pricing suggestions (read-only), draft description | never changes price without confirmation |
-| SupportAgent | any user | my reservations, cancel preview, create ticket, cancel ⚠ | escalates to a human ticket when unsure |
-| AdminAnalyticsAgent | Admin | platform KPI queries (pre-defined, parameterised) | no free-form SQL, ever |
+| TravelAssistantAgent (`travel`) | anyone | SearchProperties, GetPropertyDetails, CheckAvailability, CalculatePrice, GetWeather, GetMyReservations, CreateSupportTicket, ProposeReservation ⚠ | default agent; compares stays and explains prices |
+| PropertyRecommendationAgent (`recommendation`) | anyone | SearchProperties, RecommendSimilar, GetPropertyDetails, CalculatePrice | "more like this" recommendations with reasons |
+| HostAssistantAgent (`host`) | Host, Admin | GetHostDashboard, GetHostListings, GetHostReservations, GetHostEarnings | read-only; services scope every query to the signed-in host |
+| SupportAgent (`support`) | signed-in users | GetMyReservations, PreviewCancellation, CreateSupportTicket, ProposeCancellation ⚠ | cancellation only after the user confirms |
+| AdminAnalyticsAgent (`admin`) | Admin | GetPlatformStats, GetFraudAlerts | read-only; no free-form queries |
+
+⚠ = creates an `AiPendingAction`. Nothing happens until the user presses Confirm, which replays the stored arguments
+through the normal application path (`CreateHoldAsync` / `CancelAsync`) with its usual checks.
 
 ## Tool contract
 ```csharp

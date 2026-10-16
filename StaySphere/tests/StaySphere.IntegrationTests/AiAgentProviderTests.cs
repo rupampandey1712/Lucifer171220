@@ -71,7 +71,7 @@ public sealed class AiAgentProviderTests(ApiFactory factory)
         return await factory.WithScopeAsync(async sp =>
         {
             var toolbox = sp.GetRequiredService<AssistantToolbox>();
-            var reply = await engine.RunAsync(new AssistantMemory(), $"Find me a place in {city}", toolbox, CancellationToken.None);
+            var reply = await engine.RunAsync(new AssistantMemory(), $"Find me a place in {city}", toolbox, AgentCatalog.Travel, CancellationToken.None);
             return (reply, (IReadOnlyList<string>)toolbox.State.ToolsUsed.ToList(), city);
         });
     }

@@ -121,12 +121,14 @@ public sealed class AssistantMemory
 public interface IAssistantEngine
 {
     string Name { get; }
-    Task<string> RunAsync(AssistantMemory memory, string userMessage, AssistantToolbox toolbox, CancellationToken ct);
+    Task<string> RunAsync(AssistantMemory memory, string userMessage, AssistantToolbox toolbox, AgentDefinition agent, CancellationToken ct);
 }
 
 public interface IAssistantService
 {
     Task<Result<AssistantReplyDto>> SendAsync(AssistantMessageRequest request, CancellationToken ct);
+    /// <summary>The agents the current user may talk to.</summary>
+    IReadOnlyList<AgentInfoDto> AvailableAgents();
     Task<Result<ConfirmActionResultDto>> ConfirmAsync(Guid actionId, bool approve, CancellationToken ct);
 }
 
@@ -150,8 +152,16 @@ public sealed partial class AssistantService(
         if (text.Length == 0) return Domain.Common.Error.Validation("ai.empty", "Please type a message.");
         if (text.Length > opts.MaxMessageLength) return Domain.Common.Error.Validation("ai.too_long", $"Messages are limited to {opts.MaxMessageLength} characters.");
 
+        var agent = AgentCatalog.Find(request.Agent);
+        if (agent is null) return Domain.Common.Error.Validation("ai.unknown_agent", "Unknown assistant.");
+        if (!agent.CanUse(currentUser))
+            return currentUser.IsAuthenticated
+                ? Domain.Common.Error.Forbidden("ai.agent_forbidden", $"The {agent.DisplayName} isn't available for your account.")
+                : new Error("ai.sign_in_required", $"Please sign in to use the {agent.DisplayName}.", ErrorType.Unauthorized);
+
         var conversationId = request.ConversationId ?? Guid.CreateVersion7();
-        var key = $"ai:conversation:{currentUser.UserId?.ToString() ?? "anon"}:{conversationId}";
+        // Memory is per user AND per agent, so one agent's context never leaks into another's.
+        var key = $"ai:conversation:{currentUser.UserId?.ToString() ?? "anon"}:{agent.Key}:{conversationId}";
         var memory = await cache.GetAsync<AssistantMemory>(key, ct) ?? new AssistantMemory();
         if (memory.Turns.Count / 2 >= opts.MaxTurns)
             return new Error("ai.conversation_limit", "This conversation is long — please start a new one.", ErrorType.TooManyRequests);
@@ -162,7 +172,7 @@ public sealed partial class AssistantService(
         string used = engine.Name;
         try
         {
-            reply = await engine.RunAsync(memory, safeText, toolbox, ct);
+            reply = await engine.RunAsync(memory, safeText, toolbox, agent, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
@@ -170,7 +180,7 @@ public sealed partial class AssistantService(
             logger.LogWarning(ex, "AI engine {Engine} failed; falling back to rules", engine.Name);
             var fallback = SelectEngine("Rules");
             used = fallback.Name;
-            reply = await fallback.RunAsync(memory, safeText, toolbox, ct);
+            reply = await fallback.RunAsync(memory, safeText, toolbox, agent, ct);
         }
 
         var state = toolbox.State;
@@ -185,12 +195,15 @@ public sealed partial class AssistantService(
         await cache.SetAsync(key, memory, TimeSpan.FromHours(2), ct);
         if (currentUser.IsAuthenticated)
         {
-            audit.Record("ai.message", "AiConversation", conversationId.ToString(), new { tools = state.ToolsUsed, engine = used });
+            audit.Record("ai.message", "AiConversation", conversationId.ToString(), new { agent = agent.Name, tools = state.ToolsUsed, engine = used });
             await db.SaveChangesAsync(ct);
         }
 
-        return new AssistantReplyDto(conversationId, reply, state.Suggestions.Take(6).ToList(), state.PendingAction, state.ToolsUsed.Distinct().ToList(), used);
+        return new AssistantReplyDto(conversationId, reply, state.Suggestions.Take(6).ToList(), state.PendingAction, state.ToolsUsed.Distinct().ToList(), used, agent.Key);
     }
+
+    public IReadOnlyList<AgentInfoDto> AvailableAgents() =>
+        AgentCatalog.All.Where(a => a.CanUse(currentUser)).Select(a => a.ToDto()).ToList();
 
     /// <summary>The human-in-the-loop gate: only an explicit approval from the owner executes a proposed action.</summary>
     public async Task<Result<ConfirmActionResultDto>> ConfirmAsync(Guid actionId, bool approve, CancellationToken ct)
@@ -206,7 +219,20 @@ public sealed partial class AssistantService(
             action.Reject();
             audit.Record("ai.action_rejected", "AiPendingAction", actionId.ToString());
             await db.SaveChangesAsync(ct);
-            return new ConfirmActionResultDto(actionId, "Rejected", "No problem — nothing was booked.", null);
+            return new ConfirmActionResultDto(actionId, "Rejected",
+                action.ToolName == nameof(AssistantToolbox.ProposeCancellation) ? "No problem — your reservation stays as it is." : "No problem — nothing was booked.", null);
+        }
+
+        if (action.ToolName == nameof(AssistantToolbox.ProposeCancellation))
+        {
+            // Replays through the normal cancel path: same ownership check, policy and refund (via the event pipeline).
+            var cancelArgs = JsonSerializer.Deserialize<ProposedCancellation>(action.ArgumentsJson, Json.Options)!;
+            var cancelled = await reservations.CancelAsync(cancelArgs.ReservationId, "Cancelled via the support assistant", ct);
+            if (cancelled.IsFailure) return cancelled.Error!;
+            action.Approve(JsonSerializer.Serialize(new { reservationId = cancelArgs.ReservationId }, Json.Options));
+            audit.Record("ai.action_approved", "AiPendingAction", actionId.ToString(), new { cancelled = cancelArgs.ReservationId });
+            await db.SaveChangesAsync(ct);
+            return new ConfirmActionResultDto(actionId, "Approved", "Your reservation is cancelled. Any refund is on its way to your card.", cancelArgs.ReservationId);
         }
 
         if (action.ToolName != nameof(AssistantToolbox.ProposeReservation))
@@ -275,7 +301,137 @@ public sealed partial class RuleBasedAssistantEngine(IAppDbContext db, TimeProvi
 
     public string Name => EngineName;
 
-    public async Task<string> RunAsync(AssistantMemory memory, string message, AssistantToolbox tools, CancellationToken ct)
+    public Task<string> RunAsync(AssistantMemory memory, string message, AssistantToolbox tools, AgentDefinition agent, CancellationToken ct) =>
+        agent.Key switch
+        {
+            "host" => RunHostAsync(message.ToLowerInvariant(), tools, ct),
+            "support" => RunSupportAsync(memory, message.ToLowerInvariant(), tools, ct),
+            "admin" => RunAdminAsync(message.ToLowerInvariant(), tools, ct),
+            "recommendation" => RunRecommendationAsync(memory, message, tools, ct),
+            _ => RunTravelAsync(memory, message, tools, ct),
+        };
+
+    private async Task<string> RunRecommendationAsync(AssistantMemory memory, string message, AssistantToolbox tools, CancellationToken ct)
+    {
+        var m = message.ToLowerInvariant();
+        if (Regex.IsMatch(m, @"\b(similar|like (this|that|the)|more like|alternatives?)\b") && memory.LastSuggestions.Count > 0)
+        {
+            var target = PickReferenced(m, memory.LastSuggestions);
+            await tools.RecommendSimilar(target.ToString(), ct);
+            var found = tools.State.Suggestions.Where(s => s.Id != target).Take(3).ToList();
+            if (found.Count == 0) return "I couldn't find close alternatives to that one. Try describing what you liked about it.";
+            return "If you liked that one, you may also like:\n" + string.Join("\n", found.Select((s, i) =>
+                string.Create(CultureInfo.InvariantCulture, $"{i + 1}. {s.Title} ({s.City}) — {s.Currency} {s.NightlyPrice:0}/night. Why: {s.Reason}.")));
+        }
+
+        return await RunTravelAsync(memory, message, tools, ct);
+    }
+
+    private static async Task<string> RunHostAsync(string m, AssistantToolbox tools, CancellationToken ct)
+    {
+        if (Regex.IsMatch(m, @"\b(requests?|pending|approve|accept|decline)\b"))
+        {
+            using var doc = JsonDocument.Parse(await tools.GetHostReservations("requests", ct));
+            var items = doc.RootElement.EnumerateArray().ToList();
+            if (items.Count == 0) return "You have no booking requests waiting for an answer.";
+            return $"You have {items.Count} booking request{(items.Count == 1 ? "" : "s")} waiting:\n" + string.Join("\n", items.Select(r =>
+                $"• {r.GetProperty("propertyTitle").GetString()}: {r.GetProperty("guest").GetString()}, {r.GetProperty("checkIn").GetString()} → {r.GetProperty("checkOut").GetString()}")) +
+                "\n\nAccept or decline them in Hosting → Reservations → Requests (unanswered requests expire after 24 hours).";
+        }
+
+        if (Regex.IsMatch(m, @"\b(earn|earnings|payouts?|balance|paid|money)\b"))
+        {
+            using var doc = JsonDocument.Parse(await tools.GetHostEarnings(ct));
+            var balances = doc.RootElement.GetProperty("balances").EnumerateArray().ToList();
+            if (balances.Count == 0) return "You don't have any earnings yet.";
+            return "Your balances:\n" + string.Join("\n", balances.Select(b => string.Create(CultureInfo.InvariantCulture,
+                $"• {b.GetProperty("currency").GetString()}: available {b.GetProperty("available").GetDecimal():N2}, pending {b.GetProperty("pending").GetDecimal():N2}, paid out {b.GetProperty("paidOut").GetDecimal():N2}")));
+        }
+
+        if (Regex.IsMatch(m, @"\b(listings?|propert(y|ies)|places?)\b"))
+        {
+            using var doc = JsonDocument.Parse(await tools.GetHostListings(ct));
+            var items = doc.RootElement.EnumerateArray().ToList();
+            if (items.Count == 0) return "You don't have any listings yet. Create one from Hosting → Listings.";
+            return "Your listings:\n" + string.Join("\n", items.Select(p => string.Create(CultureInfo.InvariantCulture,
+                $"• {p.GetProperty("title").GetString()} ({p.GetProperty("status").GetString()}) — {p.GetProperty("currency").GetString()} {p.GetProperty("price").GetDecimal():0}/night, {p.GetProperty("rating").GetDouble():0.0}★, {p.GetProperty("upcomingReservations").GetInt32()} upcoming")));
+        }
+
+        using var dash = JsonDocument.Parse(await tools.GetHostDashboard(ct));
+        var d = dash.RootElement;
+        return string.Create(CultureInfo.InvariantCulture,
+            $"Here's your summary: {d.GetProperty("totalBookings").GetInt32()} bookings, revenue {d.GetProperty("currency").GetString()} {d.GetProperty("revenue").GetDecimal():N2}, {d.GetProperty("upcomingReservations").GetInt32()} upcoming stays, {d.GetProperty("occupancyPercent").GetDouble():0.#}% occupancy and a {d.GetProperty("rating").GetDouble():0.0}★ average rating.\n\nAsk me about \"booking requests\", \"earnings\" or \"my listings\".");
+    }
+
+    private static async Task<string> RunSupportAsync(AssistantMemory memory, string m, AssistantToolbox tools, CancellationToken ct)
+    {
+        if (Regex.IsMatch(m, @"\b(ticket|human|agent|contact|complain)\b"))
+        {
+            var json = await tools.CreateSupportTicket("Assistant request", m, ct);
+            return json.Contains("ticketId", StringComparison.Ordinal)
+                ? "I've opened a support ticket — our team will reply in your Support inbox."
+                : "I couldn't open a ticket right now. Please try the Support page.";
+        }
+
+        using var listDoc = JsonDocument.Parse(await tools.GetMyReservations(ct));
+        var trips = listDoc.RootElement.EnumerateArray()
+            .Where(r => r.GetProperty("status").GetString() is "Confirmed" or "AwaitingApproval" or "Held" or "PaymentPending").ToList();
+
+        if (Regex.IsMatch(m, @"\b(cancel|refund|cancellation)\b"))
+        {
+            if (trips.Count == 0) return "You don't have any upcoming reservations that can be cancelled.";
+            var index = m switch
+            {
+                _ when Regex.IsMatch(m, @"\b(second|2nd|#2)\b") => 1,
+                _ when Regex.IsMatch(m, @"\b(third|3rd|#3)\b") => 2,
+                _ => 0,
+            };
+            if (trips.Count > 1 && index == 0 && !Regex.IsMatch(m, @"\b(first|1st|#1|it|this)\b"))
+                return "Which reservation? Reply with \"cancel the first\", \"second\" or \"third\":\n" + Trips(trips);
+            var id = trips[Math.Min(index, trips.Count - 1)].GetProperty("id").GetString()!;
+
+            if (!Regex.IsMatch(m, @"\bcancel\b"))
+            {
+                using var preview = JsonDocument.Parse(await tools.PreviewCancellation(id, ct));
+                var p = preview.RootElement;
+                if (p.TryGetProperty("error", out var pe)) return pe.GetString()!;
+                return string.Create(CultureInfo.InvariantCulture,
+                    $"If you cancel now you'd get {p.GetProperty("currency").GetString()} {p.GetProperty("refundAmount").GetDecimal():N2} back. {p.GetProperty("explanation").GetString()}");
+            }
+
+            using var proposal = JsonDocument.Parse(await tools.ProposeCancellation(id, ct));
+            if (proposal.RootElement.TryGetProperty("error", out var err)) return $"I can't cancel that one: {err.GetString()}";
+            return $"{proposal.RootElement.GetProperty("summary").GetString()}\n\nPress **Confirm** to cancel — nothing changes until you confirm.";
+        }
+
+        return trips.Count == 0
+            ? "I can help with reservations, refunds and cancellations, or open a ticket with our team. You have no upcoming trips right now."
+            : "Your upcoming trips:\n" + Trips(trips) + "\n\nI can explain the refund for a trip (\"what refund would I get\"), cancel one, or open a support ticket.";
+
+        static string Trips(List<JsonElement> list) => string.Join("\n", list.Take(3).Select((r, i) =>
+            $"{i + 1}. {r.GetProperty("propertyTitle").GetString()}, {r.GetProperty("checkIn").GetString()} → {r.GetProperty("checkOut").GetString()} ({r.GetProperty("status").GetString()})"));
+    }
+
+    private static async Task<string> RunAdminAsync(string m, AssistantToolbox tools, CancellationToken ct)
+    {
+        if (Regex.IsMatch(m, @"\b(fraud|risk|suspicious|alerts?)\b"))
+        {
+            using var doc = JsonDocument.Parse(await tools.GetFraudAlerts(ct));
+            var alerts = doc.RootElement.EnumerateArray().ToList();
+            return alerts.Count == 0 ? "There are no open fraud alerts." : $"{alerts.Count} open fraud alert(s):\n" + string.Join("\n", alerts.Take(5).Select(a =>
+                $"• {a.GetProperty("ruleCode").GetString()} (score {a.GetProperty("score").GetInt32()}, {a.GetProperty("decision").GetString()}): {a.GetProperty("details").GetString()}"));
+        }
+
+        using var stats = JsonDocument.Parse(await tools.GetPlatformStats(ct));
+        var s = stats.RootElement;
+        var last = s.GetProperty("bookingsLast7Days").GetDecimal();
+        var prev = s.GetProperty("bookingsPrevious7Days").GetDecimal();
+        var trend = prev == 0 ? "" : string.Create(CultureInfo.InvariantCulture, $" ({(last - prev) / prev:+0%;-0%;0%} vs the week before)");
+        return string.Create(CultureInfo.InvariantCulture,
+            $"Platform overview: {s.GetProperty("users").GetInt32()} users ({s.GetProperty("hosts").GetInt32()} hosts), {s.GetProperty("publishedProperties").GetInt32()} published listings, {s.GetProperty("bookings").GetInt32()} bookings, revenue {s.GetProperty("currency").GetString()} {s.GetProperty("revenue").GetDecimal():N2} and refunds {s.GetProperty("refunds").GetDecimal():N2}. Cancellation rate {s.GetProperty("cancellationRatePercent").GetDouble():0.#}%. Last 7 days: {last:0} bookings{trend}, {s.GetProperty("newUsersLast7Days").GetDecimal():0} new users. Open: {s.GetProperty("openReports").GetInt32()} reports, {s.GetProperty("openTickets").GetInt32()} tickets, {s.GetProperty("fraudAlerts").GetInt32()} fraud alerts.");
+    }
+
+    private async Task<string> RunTravelAsync(AssistantMemory memory, string message, AssistantToolbox tools, CancellationToken ct)
     {
         var m = message.ToLowerInvariant();
         var (checkIn, checkOut) = ParseDates(message, memory);

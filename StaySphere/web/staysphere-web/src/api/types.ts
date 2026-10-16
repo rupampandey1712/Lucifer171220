@@ -38,6 +38,7 @@ export type FraudAlert = S['Admin.FraudAlertDto'];
 export type ReportDto = S['Admin.ReportDto'];
 export type AssistantReply = S['Ai.AssistantReplyDto'];
 export type ConfirmActionResult = S['Ai.ConfirmActionResultDto'];
+export type AgentInfo = S['Ai.AgentInfoDto'];
 export type ExchangeRates = S['ExchangeRates'];
 
 export interface Paged<T> {

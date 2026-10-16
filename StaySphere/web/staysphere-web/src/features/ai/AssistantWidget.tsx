@@ -1,10 +1,10 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { Bot, Send, Sparkles, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { api } from '@/api/client';
-import type { AssistantReply, ConfirmActionResult } from '@/api/types';
+import type { AgentInfo, AssistantReply, ConfirmActionResult } from '@/api/types';
 import { Spinner, SafeImg } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { money } from '@/lib/format';
@@ -12,6 +12,21 @@ import { useFeatureFlags } from '@/lib/hooks';
 import { toast } from '@/lib/toast';
 
 interface Turn { role: 'user' | 'assistant'; text: string; reply?: AssistantReply }
+
+const GREETINGS: Record<string, string> = {
+  travel: "Hi! I'm your StaySphere travel assistant. Tell me where you're going, your dates, group size and budget — I'll search real listings for you.",
+  recommendation: "Tell me what you like (place, budget, style) and I'll recommend stays — or ask for places similar to one you've seen.",
+  host: 'I can summarise your listings, booking requests, performance and earnings.',
+  support: 'I can look up your trips, explain refunds, cancel a reservation (after you confirm) or open a ticket with our team.',
+  admin: 'Ask me about platform metrics, trends and fraud alerts.',
+};
+
+const AGENT_SUGGESTIONS: Record<string, string[]> = {
+  recommendation: ['Recommend a cabin in the mountains', 'Show me more like the first one'],
+  host: ['Do I have any booking requests?', 'How are my earnings?', 'Summarise my listings'],
+  support: ['Show my trips', 'What refund would I get if I cancel?', 'Open a ticket with support'],
+  admin: ['Give me a platform overview', 'Any fraud alerts?'],
+};
 
 const SUGGESTIONS = ['Find a family-friendly place in Goa for 4 people under ₹8,000 per night', 'Find me a 2-bedroom apartment in London under £400 with wifi', 'Which places in Lisbon have parking?', 'Plan a 5-day trip to Kyoto'];
 
@@ -21,13 +36,27 @@ export function AssistantWidget() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
-  const [turns, setTurns] = useState<Turn[]>([{ role: 'assistant', text: "Hi! I'm your StaySphere travel assistant. Tell me where you're going, your dates, group size and budget — I'll search real listings for you." }]);
+  const [agent, setAgent] = useState('travel');
+  const [turns, setTurns] = useState<Turn[]>([{ role: 'assistant', text: GREETINGS.travel }]);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  // The server decides which agents this user may use (and enforces it again on every message).
+  const agents = useQuery({ queryKey: ['ai-agents', user?.id ?? 'anon'], queryFn: () => api<AgentInfo[]>('/ai/agents'), enabled: open, staleTime: 5 * 60_000 });
+  const currentAgent = agents.data?.find((a) => a.key === agent);
+  useEffect(() => {
+    // Signed out (or lost a role) while a privileged agent was selected: fall back to the travel assistant.
+    if (agents.data && !agents.data.some((a) => a.key === agent)) switchAgent('travel');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agents.data]);
+  const switchAgent = (key: string) => {
+    setAgent(key);
+    setConversationId(null);
+    setTurns([{ role: 'assistant', text: GREETINGS[key] ?? GREETINGS.travel }]);
+  };
   const bottom = useRef<HTMLDivElement>(null);
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }); }, [turns]);
 
   const send = useMutation({
-    mutationFn: (message: string) => api<AssistantReply>('/ai/messages', { method: 'POST', body: { conversationId, message }, timeoutMs: 90000 }),
+    mutationFn: (message: string) => api<AssistantReply>('/ai/messages', { method: 'POST', body: { conversationId, message, agent }, timeoutMs: 90000 }),
     onSuccess: (reply) => { setConversationId(reply.conversationId); setTurns((t) => [...t, { role: 'assistant', text: reply.reply, reply }]); },
     onError: (e) => setTurns((t) => [...t, { role: 'assistant', text: `Sorry — ${(e as Error).message}` }]),
   });
@@ -37,7 +66,7 @@ export function AssistantWidget() {
     mutationFn: ({ id, approve }: { id: string; approve: boolean }) => api<ConfirmActionResult>(`/ai/actions/${id}/confirm`, { method: 'POST', body: { approve } }),
     onSuccess: (r) => {
       setTurns((t) => [...t.map((x) => (x.reply?.pendingAction ? { ...x, reply: { ...x.reply, pendingAction: undefined } } : x)), { role: 'assistant', text: r.message }]);
-      if (r.reservationId) { setOpen(false); navigate(`/book/${r.reservationId}`); }
+      if (r.reservationId && agent !== 'support') { setOpen(false); navigate(`/book/${r.reservationId}`); }
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -59,8 +88,18 @@ export function AssistantWidget() {
       {open && (
         <section role="dialog" aria-label="AI travel assistant" className="fixed right-5 bottom-24 z-[900] flex h-[min(640px,75vh)] w-[min(420px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl animate-fade-in">
           <header className="flex items-center gap-3 bg-gradient-to-r from-brand-800 to-brand-600 px-5 py-4 text-white">
-            <Bot className="h-6 w-6" /><div><p className="font-semibold">Travel assistant</p><p className="text-xs text-teal-100">Answers from live listings · never books without your OK</p></div>
+            <Bot className="h-6 w-6" /><div><p className="font-semibold">{currentAgent?.displayName ?? 'Travel assistant'}</p><p className="text-xs text-teal-100">{currentAgent?.description ?? 'Answers from live listings · never books without your OK'}</p></div>
           </header>
+          {agents.data && agents.data.length > 1 && (
+            <div role="tablist" aria-label="Choose an assistant" className="flex gap-1 overflow-x-auto border-b border-slate-200 px-3 py-2">
+              {agents.data.map((a) => (
+                <button key={a.key} role="tab" aria-selected={a.key === agent} onClick={() => switchAgent(a.key)}
+                  className={clsx('shrink-0 rounded-full px-3 py-1 text-xs font-medium', a.key === agent ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200')}>
+                  {a.displayName}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex-1 space-y-4 overflow-y-auto p-4" aria-live="polite">
             {turns.map((t, i) => (
               <div key={i} className={clsx('flex', t.role === 'user' ? 'justify-end' : 'justify-start')}>
@@ -82,7 +121,9 @@ export function AssistantWidget() {
                       <p className="mt-1 text-xs text-amber-900">{t.reply.pendingAction.summary}</p>
                       {user ? (
                         <div className="mt-2 flex gap-2">
-                          <button className="btn-primary !py-1.5 text-xs" disabled={confirm.isPending} onClick={() => confirm.mutate({ id: t.reply!.pendingAction!.id, approve: true })}>Confirm hold</button>
+                          <button className="btn-primary !py-1.5 text-xs" disabled={confirm.isPending} onClick={() => confirm.mutate({ id: t.reply!.pendingAction!.id, approve: true })}>
+                            {t.reply.pendingAction.kind === 'reservation_cancellation' ? 'Confirm cancellation' : 'Confirm hold'}
+                          </button>
                           <button className="btn-secondary !py-1.5 text-xs" onClick={() => confirm.mutate({ id: t.reply!.pendingAction!.id, approve: false })}>No thanks</button>
                         </div>
                       ) : <Link to="/login" className="btn-primary mt-2 !py-1.5 text-xs">Log in to book</Link>}
@@ -94,7 +135,7 @@ export function AssistantWidget() {
             ))}
             {send.isPending && <div className="flex items-center gap-2 text-sm text-slate-500"><Spinner className="h-4 w-4" /> Searching listings…</div>}
             {turns.length === 1 && (
-              <div className="flex flex-wrap gap-2">{SUGGESTIONS.map((s) => <button key={s} className="rounded-full border border-slate-200 px-3 py-1.5 text-left text-xs hover:bg-slate-50" onClick={() => submit(s)}>{s}</button>)}</div>
+              <div className="flex flex-wrap gap-2">{(AGENT_SUGGESTIONS[agent] ?? SUGGESTIONS).map((s) => <button key={s} className="rounded-full border border-slate-200 px-3 py-1.5 text-left text-xs hover:bg-slate-50" onClick={() => submit(s)}>{s}</button>)}</div>
             )}
             <div ref={bottom} />
           </div>
