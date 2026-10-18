@@ -28,6 +28,7 @@ const HostPropertiesPage = lazyNamed(() => import('@/features/host/HostPages'), 
 const HostReservationsPage = lazyNamed(() => import('@/features/host/HostPages'), 'HostReservationsPage');
 const HostEarningsPage = lazyNamed(() => import('@/features/host/HostPages'), 'HostEarningsPage');
 const HostPromotionsPage = lazyNamed(() => import('@/features/host/Promotions'), 'HostPromotionsPage');
+const HostVerificationPage = lazyNamed(() => import('@/features/host/Verification'), 'HostVerificationPage');
 const HostReviewsPage = lazyNamed(() => import('@/features/host/HostPages'), 'HostReviewsPage');
 const HostCalendarPage = lazyNamed(() => import('@/features/host/HostCalendar'), 'HostCalendarPage');
 const NewListingPage = lazyNamed(() => import('@/features/host/ListingWizard'), 'NewListingPage');
@@ -77,6 +78,7 @@ export const router = createBrowserRouter([
           { path: 'reservations', element: <HostReservationsPage /> },
           { path: 'earnings', element: <HostEarningsPage /> },
           { path: 'promotions', element: <HostPromotionsPage /> },
+          { path: 'verification', element: <HostVerificationPage /> },
           { path: 'reviews', element: <HostReviewsPage /> },
           { path: 'analytics', element: <HostDashboardPage analytics /> },
         ],

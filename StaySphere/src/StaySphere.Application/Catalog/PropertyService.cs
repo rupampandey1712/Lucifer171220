@@ -280,7 +280,7 @@ public sealed class PropertyService(
         if (p is null) return null;
 
         var host = await db.Users.AsNoTracking().Where(u => u.Id == p.HostId)
-            .Select(u => new { u.Id, u.DisplayName, u.AvatarUrl, u.CreatedAt }).FirstAsync(ct);
+            .Select(u => new { u.Id, u.DisplayName, u.AvatarUrl, u.CreatedAt, u.HostVerification }).FirstAsync(ct);
         var hostStats = await db.Properties.AsNoTracking()
             .Where(x => x.HostId == p.HostId && x.Status == PropertyStatus.Published && x.DeletedAt == null)
             .GroupBy(_ => 1)
@@ -302,7 +302,8 @@ public sealed class PropertyService(
             p.RatingAverage, p.ReviewCount,
             p.Images.OrderBy(i => i.SortOrder).Select(i => new ImageDto(i.Id, i.Url, i.ThumbnailUrl, i.Width, i.Height, i.SortOrder)).ToList(),
             amenities,
-            new HostSummaryDto(host.Id, host.DisplayName, host.AvatarUrl, host.CreatedAt, hostStats?.Count ?? 0, Math.Round(hostStats?.Rating ?? 0, 2)),
+            new HostSummaryDto(host.Id, host.DisplayName, host.AvatarUrl, host.CreatedAt, hostStats?.Count ?? 0, Math.Round(hostStats?.Rating ?? 0, 2),
+                host.HostVerification == Domain.Identity.HostVerificationStatus.Verified),
             p.UpdatedAt);
     }
 }

@@ -20,6 +20,15 @@ public enum UserStatus
     Deleted,
 }
 
+/// <summary>Identity check a host asks for; an admin reviews the submitted details and approves or rejects.</summary>
+public enum HostVerificationStatus
+{
+    None,
+    Pending,
+    Verified,
+    Rejected,
+}
+
 public sealed class User : AggregateRoot
 {
     public const int MaxFailedAttempts = 5;
@@ -42,6 +51,11 @@ public sealed class User : AggregateRoot
     public DateTimeOffset? LockoutEnd { get; private set; }
     public string SecurityStamp { get; private set; } = Guid.NewGuid().ToString("N");
     public DateTimeOffset? LastLoginAt { get; private set; }
+    public HostVerificationStatus HostVerification { get; private set; } = HostVerificationStatus.None;
+    public string? HostVerificationLegalName { get; private set; }
+    public string? HostVerificationNote { get; private set; }
+    public DateTimeOffset? HostVerificationSubmittedAt { get; private set; }
+    public DateTimeOffset? HostVerifiedAt { get; private set; }
     public IReadOnlyCollection<UserRole> Roles => _roles;
 
     public static User Register(EmailAddress email, string displayName, string passwordHash, DateTimeOffset now)
@@ -112,6 +126,28 @@ public sealed class User : AggregateRoot
     }
 
     public void SetAvatar(string url) => AvatarUrl = url;
+
+    public Result RequestHostVerification(string legalName, string? note, DateTimeOffset now)
+    {
+        if (!IsInRole(Identity.Roles.Host)) return Error.Forbidden("verification.not_host", "Only hosts can request verification.");
+        if (!EmailConfirmed) return Error.Validation("verification.email_unconfirmed", "Confirm your email address before requesting verification.");
+        if (HostVerification is HostVerificationStatus.Pending or HostVerificationStatus.Verified)
+            return Error.Conflict("verification.already_requested", HostVerification == HostVerificationStatus.Verified ? "You are already verified." : "Your request is already under review.");
+        HostVerification = HostVerificationStatus.Pending;
+        HostVerificationLegalName = legalName.Trim();
+        HostVerificationNote = note?.Trim();
+        HostVerificationSubmittedAt = now;
+        return Result.Success();
+    }
+
+    public Result ReviewHostVerification(bool approve, string? reason, DateTimeOffset now)
+    {
+        if (HostVerification != HostVerificationStatus.Pending) return Error.Conflict("verification.not_pending", "There is no pending verification request.");
+        HostVerification = approve ? HostVerificationStatus.Verified : HostVerificationStatus.Rejected;
+        HostVerificationNote = approve ? HostVerificationNote : reason?.Trim();
+        HostVerifiedAt = approve ? now : null;
+        return Result.Success();
+    }
 
     public void Suspend()
     {

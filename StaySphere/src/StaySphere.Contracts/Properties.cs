@@ -6,7 +6,7 @@ public sealed record ImageDto(Guid Id, string Url, string ThumbnailUrl, int Widt
 
 public sealed record AmenityDto(string Code, string Name, string Category, string Icon);
 
-public sealed record HostSummaryDto(Guid Id, string DisplayName, string? AvatarUrl, DateTimeOffset JoinedAt, int ListingCount, double Rating);
+public sealed record HostSummaryDto(Guid Id, string DisplayName, string? AvatarUrl, DateTimeOffset JoinedAt, int ListingCount, double Rating, bool Verified = false);
 
 public sealed record PropertyDetailDto(
     Guid Id, Guid HostId, string Title, string Description, string PropertyType, string RoomType,

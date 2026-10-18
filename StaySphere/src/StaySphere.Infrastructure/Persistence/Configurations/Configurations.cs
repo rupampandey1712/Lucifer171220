@@ -29,6 +29,10 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         b.Property(x => x.PreferredCurrency).HasMaxLength(3).IsFixedLength();
         b.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
         b.Property(x => x.SecurityStamp).HasMaxLength(64);
+        b.Property(x => x.HostVerification).HasConversion<string>().HasMaxLength(20);
+        b.Property(x => x.HostVerificationLegalName).HasMaxLength(120);
+        b.Property(x => x.HostVerificationNote).HasMaxLength(1000);
+        b.HasIndex(x => x.HostVerification).HasFilter("[HostVerification] = 'Pending'");
         b.Property(x => x.RowVersion).IsRowVersion();
         b.HasMany(x => x.Roles).WithOne().HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Cascade);
         b.Navigation(x => x.Roles).UsePropertyAccessMode(PropertyAccessMode.Field);

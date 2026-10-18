@@ -41,6 +41,7 @@ public static class DependencyInjection
         services.AddScoped<IPayoutService, PayoutService>();
         services.AddScoped<IPromotionService, PromotionService>();
         services.AddScoped<Identity.IConsentService, Identity.ConsentService>();
+        services.AddScoped<Identity.IHostVerificationService, Identity.HostVerificationService>();
         services.AddScoped<IReviewService, ReviewService>();
         services.AddScoped<IFavoriteService, FavoriteService>();
         services.AddScoped<IMessagingService, MessagingService>();

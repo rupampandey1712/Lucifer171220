@@ -271,3 +271,21 @@ public sealed class AssistantMessageRequestValidator : AbstractValidator<Assista
         RuleFor(x => x.Agent).MaximumLength(30);
     }
 }
+
+public sealed class RequestHostVerificationRequestValidator : AbstractValidator<RequestHostVerificationRequest>
+{
+    public RequestHostVerificationRequestValidator()
+    {
+        RuleFor(x => x.LegalName).NotEmpty().MinimumLength(3).MaximumLength(120);
+        RuleFor(x => x.Note).MaximumLength(1000);
+    }
+}
+
+public sealed class ReviewHostVerificationRequestValidator : AbstractValidator<ReviewHostVerificationRequest>
+{
+    public ReviewHostVerificationRequestValidator()
+    {
+        RuleFor(x => x.Reason).NotEmpty().When(x => !x.Approve).WithMessage("Give the host a reason for the rejection.");
+        RuleFor(x => x.Reason).MaximumLength(500);
+    }
+}

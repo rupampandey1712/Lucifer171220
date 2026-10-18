@@ -922,6 +922,25 @@ namespace StaySphere.Infrastructure.Persistence.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<string>("HostVerification")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("HostVerificationLegalName")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("HostVerificationNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTimeOffset?>("HostVerificationSubmittedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("HostVerifiedAt")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<DateTimeOffset?>("LastLoginAt")
                         .HasColumnType("datetimeoffset");
 
@@ -964,6 +983,9 @@ namespace StaySphere.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetimeoffset");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("HostVerification")
+                        .HasFilter("[HostVerification] = 'Pending'");
 
                     b.HasIndex("NormalizedEmail")
                         .IsUnique();

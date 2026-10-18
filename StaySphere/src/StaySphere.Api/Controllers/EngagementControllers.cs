@@ -9,12 +9,14 @@ using StaySphere.Application.Ai;
 using StaySphere.Application.Booking;
 using StaySphere.Application.Catalog;
 using StaySphere.Application.Engagement;
+using StaySphere.Application.Identity;
 using StaySphere.Application.Payments;
 using StaySphere.Application.Reviews;
 using StaySphere.Application.Support;
 using StaySphere.Contracts;
 using StaySphere.Contracts.Admin;
 using StaySphere.Contracts.Ai;
+using StaySphere.Contracts.Auth;
 using StaySphere.Contracts.Booking;
 using StaySphere.Contracts.Engagement;
 using StaySphere.Contracts.Payments;
@@ -179,8 +181,17 @@ public sealed class SupportController(ISupportService support) : ApiControllerBa
 [Route("api/v{version:apiVersion}/host")]
 [Authorize(Policy = Policies.CanManageProperty)]
 public sealed class HostController(IPropertyService properties, IReservationService reservations, IPaymentService payments, IReviewService reviews,
-    IHostDashboardService dashboard, IBookingRequestService requests, IPayoutService payouts, IPromotionService promotions) : ApiControllerBase
+    IHostDashboardService dashboard, IBookingRequestService requests, IPayoutService payouts, IPromotionService promotions, IHostVerificationService verification) : ApiControllerBase
 {
+    /// <summary>Your host verification status (None, Pending, Verified, Rejected).</summary>
+    [HttpGet("verification")]
+    public async Task<ActionResult<HostVerificationDto>> Verification(CancellationToken ct) => FromResult(await verification.GetMineAsync(ct));
+
+    /// <summary>Ask an admin to verify you. Requires a confirmed email; 409 while a request is pending or once verified.</summary>
+    [HttpPost("verification")]
+    public async Task<ActionResult<HostVerificationDto>> RequestVerification(RequestHostVerificationRequest request, CancellationToken ct) =>
+        FromResult(await verification.RequestAsync(request, ct));
+
     /// <summary>The host's own promotions (automatic discounts: early bird, last minute, long stay, flash sale).</summary>
     [HttpGet("promotions")]
     public async Task<ActionResult<IReadOnlyList<PromotionDto>>> Promotions(CancellationToken ct) => Ok(await promotions.ListMineAsync(false, ct));
@@ -240,8 +251,21 @@ public sealed class HostController(IPropertyService properties, IReservationServ
 
 [Route("api/v{version:apiVersion}/admin")]
 [Authorize(Policy = Policies.CanViewAdminDashboard)]
-public sealed class AdminController(IAdminService admin, IReviewService reviews, IPaymentService payments, IPromotionService promotions) : ApiControllerBase
+public sealed class AdminController(IAdminService admin, IReviewService reviews, IPaymentService payments, IPromotionService promotions,
+    IHostVerificationService verification) : ApiControllerBase
 {
+    /// <summary>Host verification requests, oldest first (status defaults to Pending).</summary>
+    [HttpGet("host-verifications")]
+    [Authorize(Policy = Policies.CanManageUsers)]
+    public async Task<ActionResult<PagedResult<HostVerificationDto>>> HostVerifications([FromQuery] string? status, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default) => Ok(await verification.ListAsync(status, page, pageSize, ct));
+
+    /// <summary>Approve or reject (with a reason) a pending verification request; the host is notified.</summary>
+    [HttpPost("host-verifications/{userId:guid}")]
+    [Authorize(Policy = Policies.CanManageUsers)]
+    public async Task<ActionResult<HostVerificationDto>> ReviewHostVerification(Guid userId, ReviewHostVerificationRequest request, CancellationToken ct) =>
+        FromResult(await verification.ReviewAsync(userId, request, ct));
+
     [HttpGet("dashboard")]
     public async Task<ActionResult<AdminDashboardDto>> Dashboard(CancellationToken ct) => Ok(await admin.DashboardAsync(ct));
 

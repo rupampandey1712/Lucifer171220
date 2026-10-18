@@ -22,3 +22,12 @@ public sealed record UpdateProfileRequest(string DisplayName, string? Bio, strin
 public sealed record ConsentDto(string Purpose, bool Granted, bool Required, string PolicyVersion, DateTimeOffset? RecordedAt);
 
 public sealed record UpdateConsentRequest(bool Granted);
+
+/// <param name="Status">None, Pending, Verified or Rejected.</param>
+/// <param name="Note">The host's note while pending; the admin's reason after a rejection.</param>
+public sealed record HostVerificationDto(Guid UserId, string DisplayName, string Email, string Status, string? LegalName, string? Note,
+    DateTimeOffset? SubmittedAt, DateTimeOffset? VerifiedAt);
+
+public sealed record RequestHostVerificationRequest(string LegalName, string? Note);
+
+public sealed record ReviewHostVerificationRequest(bool Approve, string? Reason);

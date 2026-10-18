@@ -15,6 +15,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { humanize, money, prettyDate, shortDate } from '@/lib/format';
 import { useFavorites } from '@/lib/hooks';
 import { useSeo } from '@/lib/seo';
+import { VerifiedHostBadge } from '@/features/host/Verification';
 import { toast } from '@/lib/toast';
 
 const MapView = lazy(() => import('@/components/MapView').then((m) => ({ default: m.MapView })));
@@ -82,6 +83,7 @@ function PropertyView({ p, params, setParams }: { p: PropertyDetail; params: URL
           <section className="flex items-center justify-between border-b border-slate-200 pb-6">
             <div>
               <h2 className="text-xl font-semibold">{humanize(p.roomType)} {humanize(p.propertyType).toLowerCase()} hosted by {p.host.displayName}</h2>
+              {p.host.verified && <div className="mt-1"><VerifiedHostBadge /></div>}
               <p className="mt-1 flex flex-wrap gap-x-4 text-slate-600">
                 <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" /> {p.maxGuests} guests</span>
                 <span className="inline-flex items-center gap-1"><DoorOpen className="h-4 w-4" /> {p.bedrooms} bedrooms</span>

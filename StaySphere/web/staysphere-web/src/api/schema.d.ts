@@ -4,6 +4,134 @@
  */
 
 export interface paths {
+    "/api/v1/admin/host-verifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Host verification requests, oldest first (status defaults to Pending). */
+        get: {
+            parameters: {
+                query?: {
+                    status?: string;
+                    page?: number;
+                    pageSize?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PagedResultOfHostVerificationDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/host-verifications/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve or reject (with a reason) a pending verification request; the host is notified. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["Auth.ReviewHostVerificationRequest"];
+                    "text/json": components["schemas"]["Auth.ReviewHostVerificationRequest"];
+                    "application/*+json": components["schemas"]["Auth.ReviewHostVerificationRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Auth.HostVerificationDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/dashboard": {
         parameters: {
             query?: never;
@@ -3172,6 +3300,112 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/host/verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your host verification status (None, Pending, Verified, Rejected). */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Auth.HostVerificationDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Ask an admin to verify you. Requires a confirmed email; 409 while a request is pending or once verified. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["Auth.RequestHostVerificationRequest"];
+                    "text/json": components["schemas"]["Auth.RequestHostVerificationRequest"];
+                    "application/*+json": components["schemas"]["Auth.RequestHostVerificationRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Auth.HostVerificationDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -7452,6 +7686,19 @@ export interface components {
         "Auth.ForgotPasswordRequest": {
             email: string;
         };
+        "Auth.HostVerificationDto": {
+            /** Format: uuid */
+            userId: string;
+            displayName: string;
+            email: string;
+            status: string;
+            legalName?: string | null;
+            note?: string | null;
+            /** Format: date-time */
+            submittedAt?: string | null;
+            /** Format: date-time */
+            verifiedAt?: string | null;
+        };
         "Auth.LoginRequest": {
             email: string;
             password: string;
@@ -7461,6 +7708,10 @@ export interface components {
             password: string;
             displayName: string;
         };
+        "Auth.RequestHostVerificationRequest": {
+            legalName: string;
+            note?: string | null;
+        };
         "Auth.ResendVerificationRequest": {
             email: string;
         };
@@ -7469,6 +7720,10 @@ export interface components {
             userId: string;
             token: string;
             newPassword: string;
+        };
+        "Auth.ReviewHostVerificationRequest": {
+            approve: boolean;
+            reason?: string | null;
         };
         "Auth.UpdateConsentRequest": {
             granted: boolean;
@@ -7835,6 +8090,18 @@ export interface components {
             /** Format: int32 */
             readonly totalPages: number;
         };
+        PagedResultOfHostVerificationDto: {
+            items: components["schemas"]["Auth.HostVerificationDto"][];
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+            /** Format: int32 */
+            totalCount: number;
+            nextCursor?: string | null;
+            /** Format: int32 */
+            readonly totalPages: number;
+        };
         PagedResultOfMessageDto: {
             items: components["schemas"]["Engagement.MessageDto"][];
             /** Format: int32 */
@@ -8089,6 +8356,7 @@ export interface components {
             listingCount: number;
             /** Format: double */
             rating: number;
+            verified: boolean;
         };
         "Properties.ImageDto": {
             /** Format: uuid */

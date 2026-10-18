@@ -30,6 +30,9 @@ The **RL** column gives the rate-limit policy.
 | GET | /me/export | User | | `auth` (GDPR export) |
 | GET | /me/consents | User | | Terms, Privacy, MarketingEmails, ProductAnalytics with policy version |
 | PUT | /me/consents/{purpose} | User | | Append-only record; withdrawing Terms/Privacy → 422 |
+| GET/POST | /host/verification | Host | | Request verification (confirmed email; 409 while pending/verified) |
+| GET | /admin/host-verifications | Admin | | Queue, `status` defaults to Pending |
+| POST | /admin/host-verifications/{userId} | Admin | | Approve, or reject with a reason; host notified (in-app + email) |
 | DELETE | /me | User | | (anonymise and delete) |
 
 ## Catalog & hosting
