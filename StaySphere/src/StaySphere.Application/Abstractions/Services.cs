@@ -128,3 +128,25 @@ public interface IMessageBus
 {
     Task PublishAsync(OutboundMessage message, CancellationToken cancellationToken);
 }
+
+/// <summary>The provider's verdict on an identity session.</summary>
+/// <param name="Status">Pending (the user hasn't finished or the provider is still processing), Verified or Failed.</param>
+public sealed record IdentitySessionResult(string SessionId, IdentitySessionStatus Status, string? VerifiedName, string? FailureReason);
+
+public enum IdentitySessionStatus
+{
+    Pending,
+    Verified,
+    Failed,
+}
+
+/// <summary>
+/// Automated ID-document verification (Stripe Identity in production). The provider hosts the capture flow and keeps the
+/// document images; StaySphere only learns the outcome. <see cref="Enabled"/> is false when only admin review is available.
+/// </summary>
+public interface IIdentityVerificationProvider
+{
+    bool Enabled { get; }
+    Task<(string SessionId, string Url)> CreateSessionAsync(Guid userId, string returnUrl, CancellationToken cancellationToken);
+    Task<IdentitySessionResult> GetSessionAsync(string sessionId, CancellationToken cancellationToken);
+}

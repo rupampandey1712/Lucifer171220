@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using StaySphere.Application.Booking;
+using StaySphere.Application.Identity;
 using StaySphere.Application.Payments;
 
 namespace StaySphere.Infrastructure.Jobs;
@@ -23,6 +24,7 @@ public sealed class ScheduledJobs(IServiceScopeFactory scopes, ILogger<Scheduled
         new("complete-stays", TimeSpan.FromMinutes(10), (sp, ct) => sp.GetRequiredService<IBookingMaintenance>().CompleteFinishedStaysAsync(ct)),
         new("checkin-reminders", TimeSpan.FromHours(1), (sp, ct) => sp.GetRequiredService<IBookingMaintenance>().SendCheckInRemindersAsync(ct)),
         new("review-reminders", TimeSpan.FromHours(6), (sp, ct) => sp.GetRequiredService<IBookingMaintenance>().SendReviewRemindersAsync(ct)),
+        new("identity-checks", TimeSpan.FromMinutes(15), (sp, ct) => sp.GetRequiredService<IHostVerificationService>().ReconcileDocumentChecksAsync(ct)),
         new("cleanup", TimeSpan.FromHours(6), (sp, ct) => sp.GetRequiredService<IBookingMaintenance>().CleanupAsync(ct)),
     ];
 

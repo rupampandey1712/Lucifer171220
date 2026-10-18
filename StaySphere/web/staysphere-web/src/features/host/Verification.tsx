@@ -1,11 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BadgeCheck, Clock } from 'lucide-react';
-import { useState } from 'react';
+import { BadgeCheck, Clock, ExternalLink, ScanFace } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { api, ApiError } from '@/api/client';
-import type { HostVerificationDto, Paged } from '@/api/types';
+import type { HostVerificationDto, IdentityCheckDto, Paged } from '@/api/types';
 import { Badge, DataTable, ErrorState, FieldError, Modal, PageHeader, Skeleton } from '@/components/ui';
 import { prettyDate } from '@/lib/format';
 import { toast } from '@/lib/toast';
@@ -25,6 +26,34 @@ export function HostVerificationPage() {
   const qc = useQueryClient();
   const status = useQuery({ queryKey: ['host', 'verification'], queryFn: () => api<HostVerificationDto>('/host/verification') });
   const form = useForm<FormValues>({ resolver: zodResolver(schema) });
+  const [params, setParams] = useSearchParams();
+  const returned = useRef(false);
+  const startCheck = useMutation({
+    mutationFn: () => api<IdentityCheckDto>('/host/verification/identity', { method: 'POST', body: {} }),
+    onSuccess: ({ url }) => {
+      if (!url.startsWith('https://') && !url.startsWith(window.location.origin)) { toast.error('Unexpected verification link.'); return; }
+      window.location.assign(url);
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : 'Could not start the ID check'),
+  });
+  const refreshCheck = useMutation({
+    mutationFn: () => api<HostVerificationDto>('/host/verification/identity/refresh', { method: 'POST', body: {} }),
+    onSuccess: (d) => {
+      qc.setQueryData(['host', 'verification'], d);
+      if (d.status === 'Verified') toast.success('Your ID was verified');
+      else if (d.status === 'Pending') toast.info('Your ID is still being checked. This usually takes a minute or two.');
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+  // Back from the identity provider: read the outcome once, then tidy the URL.
+  useEffect(() => {
+    if (params.get('identity') !== 'return' || returned.current) return;
+    returned.current = true;
+    refreshCheck.mutate();
+    params.delete('identity');
+    setParams(params, { replace: true });
+  }, [params, setParams, refreshCheck]);
+
   const submit = useMutation({
     mutationFn: (v: FormValues) => api<HostVerificationDto>('/host/verification', { method: 'POST', body: { legalName: v.legalName, note: v.note || null } }),
     onSuccess: (d) => { qc.setQueryData(['host', 'verification'], d); toast.success('Request sent. An admin will review it shortly.'); },
@@ -39,11 +68,28 @@ export function HostVerificationPage() {
         if (v.status === 'Verified') return (
           <div className="card flex items-center gap-3 p-6"><VerifiedHostBadge /><p className="text-sm text-slate-600">Verified {v.verifiedAt ? prettyDate(v.verifiedAt) : ''}.</p></div>);
         if (v.status === 'Pending') return (
-          <div className="card flex items-center gap-3 p-6"><Clock className="h-5 w-5 text-amber-600" />
-            <p className="text-sm text-slate-600">Your request from {v.submittedAt ? prettyDate(v.submittedAt) : 'recently'} is being reviewed.</p></div>);
+          <div className="card flex flex-wrap items-center gap-3 p-6"><Clock className="h-5 w-5 text-amber-600" />
+            <p className="flex-1 text-sm text-slate-600">{v.method === 'Document'
+              ? 'Your ID check is in progress. If you closed the window before finishing, start it again.'
+              : `Your request from ${v.submittedAt ? prettyDate(v.submittedAt) : 'recently'} is being reviewed.`}</p>
+            {v.method === 'Document' && <div className="flex gap-2">
+              <button className="btn-secondary" disabled={refreshCheck.isPending} onClick={() => refreshCheck.mutate()}>{refreshCheck.isPending ? 'Checking…' : 'Check status'}</button>
+              <button className="btn-ghost" disabled={startCheck.isPending} onClick={() => startCheck.mutate()}>Start again</button>
+            </div>}
+          </div>);
         return (
+          <>
+          {v.status === 'Rejected' && <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">Your last request was not approved: {v.note}</p>}
+          {v.documentCheckAvailable && (
+            <div className="card mb-4 p-6">
+              <h2 className="flex items-center gap-2 font-semibold"><ScanFace className="h-5 w-5" /> Verify with your ID</h2>
+              <p className="mt-1 mb-4 text-sm text-slate-600">Take a photo of your passport, ID card or driving licence and a quick selfie on our verification partner's secure page. Most checks finish in a couple of minutes. We never see or store the document itself.</p>
+              <button className="btn-primary" disabled={startCheck.isPending} onClick={() => startCheck.mutate()}>
+                {startCheck.isPending ? 'Opening…' : <>Verify my ID <ExternalLink className="h-4 w-4" /></>}
+              </button>
+            </div>)}
           <form className="card space-y-4 p-6" onSubmit={form.handleSubmit((d) => submit.mutate(d))} noValidate>
-            {v.status === 'Rejected' && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">Your last request was not approved: {v.note}</p>}
+            {v.documentCheckAvailable && <h2 className="font-semibold">Or ask for a manual review</h2>}
             <label className="block text-sm font-medium">Full legal name
               <input className="input mt-1" {...form.register('legalName')} autoComplete="name" />
             </label>
@@ -52,8 +98,9 @@ export function HostVerificationPage() {
               <textarea className="input mt-1" rows={3} {...form.register('note')} />
             </label>
             <p className="text-xs text-slate-500">You need a confirmed email address. Never send ID documents through messages.</p>
-            <button className="btn-primary" disabled={submit.isPending}>{submit.isPending ? 'Sending…' : 'Request verification'}</button>
-          </form>);
+            <button className={v.documentCheckAvailable ? 'btn-secondary' : 'btn-primary'} disabled={submit.isPending}>{submit.isPending ? 'Sending…' : 'Request verification'}</button>
+          </form>
+          </>);
       })()}
     </section>
   );

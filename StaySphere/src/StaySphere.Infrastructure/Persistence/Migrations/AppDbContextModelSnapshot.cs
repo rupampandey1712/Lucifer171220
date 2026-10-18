@@ -969,6 +969,10 @@ namespace StaySphere.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("HostVerifiedAt")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("IdentitySessionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<DateTimeOffset?>("LastLoginAt")
                         .HasColumnType("datetimeoffset");
 

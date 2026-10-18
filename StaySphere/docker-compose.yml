@@ -23,6 +23,8 @@ x-backend-env: &backend-env
   AI__ApiKey: ${AI_API_KEY:-}
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   App__PublicWebUrl: http://localhost:5173
+  # Local demo of ID-document checks (every check passes). StripeIdentity + IdentityVerification__Stripe__SecretKey for real checks; None = admin review only.
+  IdentityVerification__Provider: ${IDENTITY_PROVIDER:-Simulated}
   OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
   ASPNETCORE_ENVIRONMENT: Development
 

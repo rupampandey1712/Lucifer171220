@@ -31,6 +31,8 @@ The **RL** column gives the rate-limit policy.
 | GET | /me/consents | User | | Terms, Privacy, MarketingEmails, ProductAnalytics with policy version |
 | PUT | /me/consents/{purpose} | User | | Append-only record; withdrawing Terms/Privacy → 422 |
 | GET/POST | /host/verification | Host | | Request verification (confirmed email; 409 while pending/verified) |
+| POST | /host/verification/identity → `{url}` | Host | | Starts an ID-document check at the identity provider (422 when none is configured) |
+| POST | /host/verification/identity/refresh | Host | | Reads the check's verdict after returning from the provider |
 | GET | /admin/host-verifications | Admin | | Queue, `status` defaults to Pending |
 | POST | /admin/host-verifications/{userId} | Admin | | Approve, or reject with a reason; host notified (in-app + email) |
 | DELETE | /me | User | | (anonymise and delete) |

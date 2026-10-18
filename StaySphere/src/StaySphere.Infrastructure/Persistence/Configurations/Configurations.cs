@@ -32,6 +32,7 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         b.Property(x => x.HostVerification).HasConversion<string>().HasMaxLength(20);
         b.Property(x => x.HostVerificationLegalName).HasMaxLength(120);
         b.Property(x => x.HostVerificationNote).HasMaxLength(1000);
+        b.Property(x => x.IdentitySessionId).HasMaxLength(100);
         b.HasIndex(x => x.HostVerification).HasFilter("[HostVerification] = 'Pending'");
         b.Property(x => x.RowVersion).IsRowVersion();
         b.HasMany(x => x.Roles).WithOne().HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Cascade);

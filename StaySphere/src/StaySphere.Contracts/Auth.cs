@@ -25,8 +25,12 @@ public sealed record UpdateConsentRequest(bool Granted);
 
 /// <param name="Status">None, Pending, Verified or Rejected.</param>
 /// <param name="Note">The host's note while pending; the admin's reason after a rejection.</param>
+/// <param name="Method">Manual (admin review) or Document (automated ID check); null before any request.</param>
+/// <param name="DocumentCheckAvailable">True when an identity provider is configured, so the host can verify with an ID document.</param>
 public sealed record HostVerificationDto(Guid UserId, string DisplayName, string Email, string Status, string? LegalName, string? Note,
-    DateTimeOffset? SubmittedAt, DateTimeOffset? VerifiedAt);
+    DateTimeOffset? SubmittedAt, DateTimeOffset? VerifiedAt, string? Method = null, bool DocumentCheckAvailable = false);
+
+public sealed record IdentityCheckDto(string Url);
 
 public sealed record RequestHostVerificationRequest(string LegalName, string? Note);
 

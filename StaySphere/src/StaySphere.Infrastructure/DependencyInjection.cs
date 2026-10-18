@@ -107,6 +107,25 @@ public static class DependencyInjection
             services.AddSingleton<IPayoutProvider, FakePayoutProvider>();
         }
 
+        var identity = configuration.GetSection(IdentityVerification.IdentityVerificationOptions.Section).Get<IdentityVerification.IdentityVerificationOptions>()
+            ?? new IdentityVerification.IdentityVerificationOptions();
+        switch (identity.Provider.ToLowerInvariant())
+        {
+            case "stripeidentity":
+                if (string.IsNullOrWhiteSpace(identity.Stripe.SecretKey))
+                    throw new InvalidOperationException("IdentityVerification:Provider is StripeIdentity but IdentityVerification:Stripe:SecretKey is not set.");
+                services.AddHttpClient(nameof(IdentityVerification.StripeIdentityProvider), c => IdentityVerification.StripeIdentityProvider.Configure(c, identity.Stripe));
+                services.AddTransient<IIdentityVerificationProvider>(sp => new IdentityVerification.StripeIdentityProvider(
+                    sp.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(IdentityVerification.StripeIdentityProvider)), identity.Stripe));
+                break;
+            case "simulated":
+                services.AddSingleton<IIdentityVerificationProvider, IdentityVerification.SimulatedIdentityVerificationProvider>();
+                break;
+            default:
+                services.AddSingleton<IIdentityVerificationProvider, IdentityVerification.DisabledIdentityVerificationProvider>();
+                break;
+        }
+
         AddExternalServices(services, configuration);
         AddMessaging(services, configuration);
         AddAi(services, configuration);

@@ -187,6 +187,14 @@ public sealed class HostController(IPropertyService properties, IReservationServ
     [HttpGet("verification")]
     public async Task<ActionResult<HostVerificationDto>> Verification(CancellationToken ct) => FromResult(await verification.GetMineAsync(ct));
 
+    /// <summary>Verify with an ID document (when an identity provider is configured): returns the provider's capture URL.</summary>
+    [HttpPost("verification/identity")]
+    public async Task<ActionResult<IdentityCheckDto>> StartIdentityCheck(CancellationToken ct) => FromResult(await verification.StartDocumentCheckAsync(ct));
+
+    /// <summary>Reads the ID check's outcome after returning from the provider.</summary>
+    [HttpPost("verification/identity/refresh")]
+    public async Task<ActionResult<HostVerificationDto>> RefreshIdentityCheck(CancellationToken ct) => FromResult(await verification.RefreshDocumentCheckAsync(ct));
+
     /// <summary>Ask an admin to verify you. Requires a confirmed email; 409 while a request is pending or once verified.</summary>
     [HttpPost("verification")]
     public async Task<ActionResult<HostVerificationDto>> RequestVerification(RequestHostVerificationRequest request, CancellationToken ct) =>

@@ -36,6 +36,8 @@ test('guest messages a host and sends a photo', async ({ page }) => {
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page).toHaveURL(/\/messages\//);
 
-  await page.locator('input[type="file"]').setInputFiles({ name: 'street.png', mimeType: 'image/png', buffer: png() });
-  await expect(page.getByRole('img', { name: 'street.jpg' })).toBeVisible();
+  // Unique per run: the conversation persists between runs against the same stack, so a fixed name could match an old photo.
+  const name = `street-${Date.now()}`;
+  await page.locator('input[type="file"]').setInputFiles({ name: `${name}.png`, mimeType: 'image/png', buffer: png() });
+  await expect(page.getByRole('img', { name: `${name}.jpg` })).toBeVisible();
 });

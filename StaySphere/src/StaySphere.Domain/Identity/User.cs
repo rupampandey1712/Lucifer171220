@@ -55,6 +55,8 @@ public sealed class User : AggregateRoot
     public string? HostVerificationLegalName { get; private set; }
     public string? HostVerificationNote { get; private set; }
     public DateTimeOffset? HostVerificationSubmittedAt { get; private set; }
+    /// <summary>The identity provider's session (Stripe Identity <c>vs_…</c>) when the host verifies with an ID document.</summary>
+    public string? IdentitySessionId { get; private set; }
     public DateTimeOffset? HostVerifiedAt { get; private set; }
     public IReadOnlyCollection<UserRole> Roles => _roles;
 
@@ -137,6 +139,34 @@ public sealed class User : AggregateRoot
         HostVerificationLegalName = legalName.Trim();
         HostVerificationNote = note?.Trim();
         HostVerificationSubmittedAt = now;
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// Starts an automated ID-document check at the identity provider. The document and selfie are captured and kept by the
+    /// provider; StaySphere stores only the session id and the outcome.
+    /// </summary>
+    public Result StartIdentityCheck(string sessionId, DateTimeOffset now)
+    {
+        if (!IsInRole(Identity.Roles.Host)) return Error.Forbidden("verification.not_host", "Only hosts can request verification.");
+        if (!EmailConfirmed) return Error.Validation("verification.email_unconfirmed", "Confirm your email address before requesting verification.");
+        if (HostVerification == HostVerificationStatus.Verified) return Error.Conflict("verification.already_verified", "You are already verified.");
+        HostVerification = HostVerificationStatus.Pending;
+        IdentitySessionId = sessionId;
+        HostVerificationNote = null;
+        HostVerificationSubmittedAt = now;
+        return Result.Success();
+    }
+
+    /// <summary>Applies the provider's verdict on <paramref name="sessionId"/>; a verified document verifies the host without an admin.</summary>
+    public Result CompleteIdentityCheck(string sessionId, bool verified, string? verifiedName, string? failureReason, DateTimeOffset now)
+    {
+        if (HostVerification != HostVerificationStatus.Pending || IdentitySessionId != sessionId)
+            return Error.Conflict("verification.session_mismatch", "This identity check is no longer pending.");
+        HostVerification = verified ? HostVerificationStatus.Verified : HostVerificationStatus.Rejected;
+        if (verified && !string.IsNullOrWhiteSpace(verifiedName)) HostVerificationLegalName = verifiedName.Trim();
+        HostVerificationNote = verified ? "ID document verified" : failureReason ?? "The ID document could not be verified.";
+        HostVerifiedAt = verified ? now : null;
         return Result.Success();
     }
 

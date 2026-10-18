@@ -28,6 +28,7 @@ export type PayoutDto = S['Payments.PayoutDto'];
 export type PromotionDto = S['Booking.PromotionDto'];
 export type ConsentDto = S['Auth.ConsentDto'];
 export type HostVerificationDto = S['Auth.HostVerificationDto'];
+export type IdentityCheckDto = S['Auth.IdentityCheckDto'];
 export type SearchInsightsDto = S['Search.SearchInsightsDto'];
 export type CountryDto = S['Search.CountryDto'];
 export type ReviewDto = S['Reviews.ReviewDto'];
