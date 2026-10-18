@@ -80,10 +80,16 @@ public sealed class AuthService(
         return await IssueTokensAsync(user, Guid.CreateVersion7(), ct);
     }
 
+    /// <remarks>
+    /// Sign-in bookkeeping (failed-attempt counter, lockout, last login) is written with single atomic UPDATEs rather than by
+    /// saving the tracked user: simultaneous logins for one account (two tabs, two devices, or parallel password guessing)
+    /// would otherwise race on the row version, failing real users and dropping failed attempts from the lockout count.
+    /// The SQL mirrors <see cref="User.RecordFailedLogin"/> and <see cref="User.RecordSuccessfulLogin"/>.
+    /// </remarks>
     public async Task<Result<AuthResult>> LoginAsync(LoginRequest request, CancellationToken ct)
     {
         var normalized = request.Email.Trim().ToUpperInvariant();
-        var user = await db.Users.Include(u => u.Roles).FirstOrDefaultAsync(u => u.NormalizedEmail == normalized, ct);
+        var user = await db.Users.AsNoTracking().Include(u => u.Roles).FirstOrDefaultAsync(u => u.NormalizedEmail == normalized, ct);
         var now = clock.GetUtcNow();
 
         if (user is null)
@@ -97,7 +103,10 @@ public sealed class AuthService(
 
         if (!hasher.Verify(user.PasswordHash, request.Password))
         {
-            user.RecordFailedLogin(now);
+            var lockoutEnd = now.Add(User.LockoutDuration);
+            await db.Users.Where(u => u.Id == user.Id).ExecuteUpdateAsync(set => set
+                .SetProperty(u => u.LockoutEnd, u => u.AccessFailedCount + 1 >= User.MaxFailedAttempts ? lockoutEnd : u.LockoutEnd)
+                .SetProperty(u => u.AccessFailedCount, u => u.AccessFailedCount + 1 >= User.MaxFailedAttempts ? 0 : u.AccessFailedCount + 1), ct);
             audit.Record("auth.login_failed", nameof(User), user.Id.ToString(), actorOverride: user.Id);
             await db.SaveChangesAsync(ct);
             return InvalidCredentials;
@@ -106,7 +115,9 @@ public sealed class AuthService(
         if (user.Status != UserStatus.Active)
             return Error.Forbidden("auth.suspended", "This account is not active. Please contact support.");
 
-        user.RecordSuccessfulLogin(now);
+        await db.Users.Where(u => u.Id == user.Id).ExecuteUpdateAsync(set => set
+            .SetProperty(u => u.AccessFailedCount, 0).SetProperty(u => u.LockoutEnd, (DateTimeOffset?)null).SetProperty(u => u.LastLoginAt, now), ct);
+        user.RecordSuccessfulLogin(now); // keep the returned profile consistent with what was just written
         audit.Record("auth.login", nameof(User), user.Id.ToString(), actorOverride: user.Id);
         return await IssueTokensAsync(user, Guid.CreateVersion7(), ct);
     }

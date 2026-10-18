@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using StaySphere.Contracts.Auth;
 using StaySphere.IntegrationTests.Infrastructure;
 
@@ -9,6 +11,23 @@ namespace StaySphere.IntegrationTests;
 [Collection(ApiCollection.Name)]
 public sealed class AuthTests(ApiFactory api)
 {
+    [Fact]
+    public async Task Simultaneous_logins_for_one_account_all_succeed_and_failed_attempts_all_count()
+    {
+        var email = $"{Guid.NewGuid():N}@test.local";
+        (await api.CreateClient().PostAsJsonAsync("/api/v1/auth/register", new RegisterRequest(email, "Str0ngPassword!", "Ana"))).EnsureSuccessStatusCode();
+
+        // Regression: concurrent logins raced on the user row's rowversion and the losers got a 500.
+        var logins = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => api.CreateClient().PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(email, "Str0ngPassword!"))));
+        logins.ShouldAllBe(r => r.StatusCode == HttpStatusCode.OK);
+
+        var wrong = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => api.CreateClient().PostAsJsonAsync("/api/v1/auth/login", new LoginRequest(email, "wrong-password"))));
+        wrong.ShouldAllBe(r => r.StatusCode == HttpStatusCode.Unauthorized);
+        var failures = await api.WithScopeAsync(sp => sp.GetRequiredService<StaySphere.Infrastructure.Persistence.AppDbContext>().Users
+            .Where(u => u.Email == email).Select(u => u.AccessFailedCount).SingleAsync());
+        failures.ShouldBe(4, "every parallel guess counts toward the lockout");
+    }
+
     [Fact]
     public async Task Register_login_and_me()
     {
