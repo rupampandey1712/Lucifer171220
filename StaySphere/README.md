@@ -131,6 +131,8 @@ cd web/staysphere-web && npm ci && npm run dev # http://localhost:5173 (proxies 
 | Frontend (18) | `cd web/staysphere-web && npm test` | Components, API client (refresh single-flight, ProblemDetails), card tokenization |
 | Black-box API (9) | `STAYSPHERE_API_URL=http://localhost:5173 dotnet test tests/StaySphere.ApiTests` (stack running; skipped otherwise) | HTTP only, through nginx, referencing nothing but the public contracts: security headers, 401/403/400 problem documents, sign-up → consents, book → pay with an **idempotent replay**, concurrent holds on the same nights → one wins, tampered quote rejected |
 | E2E (10) | `npx playwright test` (stack running) | Log in → search → reserve → pay → confirmed; host dashboard; host accepts a booking request and sees payouts; RBAC; mobile smoke |
+| Load (k6) | `docker compose -f docker-compose.yml -f docker-compose.perf.yml up -d --build` then `docker run --rm --network host -v $PWD/tests/perf:/perf grafana/k6:0.57.0 run /perf/browse.js` | Search → listing → quote under ramping load; fails if p95 > 500 ms (reads) / 800 ms (quotes) or errors > 1 %. Weekly in `staysphere-quality.yml` |
+| Security (OWASP ZAP) | `staysphere-quality.yml` (weekly / on demand) | Baseline passive scan + AJAX spider through nginx; rules in `tests/security/zap-rules.tsv` fail the build on missing security headers, unsafe cookies or error disclosure |
 
 ## Where things are
 

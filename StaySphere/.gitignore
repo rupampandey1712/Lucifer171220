@@ -12,3 +12,4 @@ playwright-report/
 test-results/
 *.log
 .data/
+tests/perf/summary.json

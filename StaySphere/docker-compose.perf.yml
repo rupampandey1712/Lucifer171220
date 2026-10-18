@@ -1,0 +1,6 @@
+# Load-test profile: same stack, rate limits scaled up so k6 (one source IP) measures the app instead of the limiter.
+#   docker compose -f docker-compose.yml -f docker-compose.perf.yml up -d --build
+services:
+  api:
+    environment:
+      RateLimiting__Multiplier: "200"

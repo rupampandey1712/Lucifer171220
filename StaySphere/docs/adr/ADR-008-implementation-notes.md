@@ -32,6 +32,5 @@ The first design package was written before any code. Building the system led to
 ## Known gaps (roadmap)
 - Real payout rails (the payout provider is a simulator behind `IPayoutProvider`).
 - Server-side rendering or prerendering of listing pages for SEO. Client-side meta tags and JSON-LD are implemented.
-- k6 performance tests and an OWASP ZAP baseline in CI.
 - Experiences (behind the `Experiences` feature flag).
 - Document-based identity verification through a KYC provider (verification today is an admin review).

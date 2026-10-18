@@ -1,0 +1,16 @@
+# ZAP baseline rules for StaySphere (rule id<TAB>IGNORE|WARN|FAIL<TAB>reason). Anything not listed is a WARN (reported, not failing).
+# Headers and cookies we promise in docs/architecture/05-security.md are FAIL: a regression breaks the build.
+10020	FAIL	(Anti-clickjacking header missing - we send X-Frame-Options DENY and frame-ancestors none)
+10021	FAIL	(X-Content-Type-Options missing - we always send nosniff)
+10038	FAIL	(Content-Security-Policy header not set)
+10010	FAIL	(Cookie without HttpOnly - the refresh cookie must be HttpOnly)
+10054	FAIL	(Cookie without SameSite)
+10037	FAIL	(Server leaks X-Powered-By)
+10023	FAIL	(Debug error messages)
+90022	FAIL	(Application error disclosure - stack traces must never reach clients)
+10011	IGNORE	(Cookie without Secure - the CI stack is plain http on localhost; production is HTTPS-only behind Front Door)
+10035	IGNORE	(Strict-Transport-Security - set at the edge (Front Door); the CI stack is http)
+10202	IGNORE	(Absence of anti-CSRF tokens - the API authenticates with bearer tokens, not cookies; the refresh cookie is SameSite=Strict on one path)
+10096	IGNORE	(Timestamp disclosure - ISO dates in JSON are data)
+10109	IGNORE	(Modern web application - informational)
+10049	IGNORE	(Storable and cacheable content - hashed static assets are cached on purpose)
