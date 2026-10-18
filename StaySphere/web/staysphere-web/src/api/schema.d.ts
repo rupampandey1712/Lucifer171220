@@ -4,6 +4,66 @@
  */
 
 export interface paths {
+    "/api/v1/admin/search-insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Anonymised search demand: top destinations and searches that found nothing (last 1–90 days). */
+        get: {
+            parameters: {
+                query?: {
+                    days?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Search.SearchInsightsDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "application/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                        "text/json": components["schemas"]["Microsoft.AspNetCore.Mvc.ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/host-verifications": {
         parameters: {
             query?: never;
@@ -8609,8 +8669,21 @@ export interface components {
             country?: string | null;
             countryCode?: string | null;
         };
+        "Search.SearchInsightsDto": {
+            /** Format: int32 */
+            days: number;
+            /** Format: int32 */
+            totalSearches: number;
+            topDestinations: components["schemas"]["Search.SearchTermDto"][];
+            zeroResultSearches: components["schemas"]["Search.SearchTermDto"][];
+        };
         /** @enum {string} */
         "Search.SearchSort": "Recommended" | "PriceLowHigh" | "PriceHighLow" | "Rating" | "MostReviewed" | "Distance" | "Newest";
+        "Search.SearchTermDto": {
+            location: string;
+            /** Format: int32 */
+            searches: number;
+        };
         "Support.CreateReportRequest": {
             targetType: string;
             /** Format: uuid */

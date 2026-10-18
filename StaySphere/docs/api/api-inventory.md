@@ -66,6 +66,7 @@ The **RL** column gives the rate-limit policy.
 |---|---|---|
 | GET | /search/properties?q&lat&lng&radiusKm&bbox&checkIn&checkOut&guests&type&minPrice&maxPrice&bedrooms&beds&bathrooms&amenities[]&minRating&instantBook&petFriendly&sort&page&pageSize&cursor | Anon, RL `anon` |
 | GET | /search/suggest?q | Anon (destinations autocomplete) |
+| GET | /admin/search-insights?days | Admin | Anonymised top destinations and zero-result searches (min 3 searches per term) |
 | GET | /geo/geocode?q | Anon (cached, throttled proxy to provider) |
 | GET | /destinations/featured | Anon |
 | GET | /currencies, /currencies/rates | Anon |

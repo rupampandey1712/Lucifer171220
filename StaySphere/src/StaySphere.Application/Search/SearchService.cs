@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using StaySphere.Application.Abstractions;
 using StaySphere.Application.Common;
 using StaySphere.Contracts;
@@ -27,14 +28,52 @@ public interface ISearchService
     Task<IReadOnlyList<DestinationDto>> GetFeaturedDestinationsAsync(CancellationToken ct);
     Task<IReadOnlyList<string>> SuggestAsync(string prefix, CancellationToken ct);
     Task<IReadOnlyList<PropertyCardDto>> SimilarAsync(Guid propertyId, CancellationToken ct);
+    Task<SearchInsightsDto> InsightsAsync(int days, CancellationToken ct);
 }
 
-public sealed class SearchService(ISearchProvider provider, IAppDbContext db, ICacheService cache) : ISearchService
+public sealed class SearchService(ISearchProvider provider, IAppDbContext db, ICacheService cache, TimeProvider clock, ILogger<SearchService> logger)
+    : ISearchService
 {
-    public Task<PagedResult<PropertyCardDto>> SearchAsync(SearchPropertiesQuery query, CancellationToken ct)
+    /// <summary>k-anonymity floor for insights: a destination searched by fewer people than this is never shown.</summary>
+    public const int MinSearchesToShow = 3;
+
+    public async Task<PagedResult<PropertyCardDto>> SearchAsync(SearchPropertiesQuery query, CancellationToken ct)
     {
         var key = CacheKeys.Search(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(query, Json.Options))))[..32]);
-        return cache.GetOrCreateAsync(key, TimeSpan.FromSeconds(60), c => provider.SearchAsync(query, c), ct);
+        var result = await cache.GetOrCreateAsync(key, TimeSpan.FromSeconds(60), c => provider.SearchAsync(query, c), ct);
+        if (query.Cursor is null && query.Page <= 1) await LogAsync(query, result.TotalCount, ct);
+        return result;
+    }
+
+    /// <summary>Records the first page of each search, anonymised. Best effort: a failure here never fails the search.</summary>
+    private async Task LogAsync(SearchPropertiesQuery q, int results, CancellationToken ct)
+    {
+        try
+        {
+            int? nights = q is { CheckIn: { } ci, CheckOut: { } co } && co > ci ? co.DayNumber - ci.DayNumber : null;
+            db.SearchQueryLogs.Add(SearchQueryLog.Record(q.Location, q.Guests, nights, results, clock.GetUtcNow()));
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogWarning(ex, "Could not record a search query");
+        }
+    }
+
+    public async Task<SearchInsightsDto> InsightsAsync(int days, CancellationToken ct)
+    {
+        days = Math.Clamp(days, 1, (int)SearchQueryLog.Retention.TotalDays);
+        var since = clock.GetUtcNow().AddDays(-days);
+        var logs = db.SearchQueryLogs.AsNoTracking().Where(l => l.SearchedAt >= since);
+        var total = await logs.CountAsync(ct);
+        var top = await logs.Where(l => l.Location != null).GroupBy(l => l.Location!)
+            .Select(g => new { Location = g.Key, Count = g.Count() }).Where(x => x.Count >= MinSearchesToShow)
+            .OrderByDescending(x => x.Count).ThenBy(x => x.Location).Take(10).ToListAsync(ct);
+        var zero = await logs.Where(l => l.Location != null && l.ResultCount == 0).GroupBy(l => l.Location!)
+            .Select(g => new { Location = g.Key, Count = g.Count() }).Where(x => x.Count >= MinSearchesToShow)
+            .OrderByDescending(x => x.Count).ThenBy(x => x.Location).Take(10).ToListAsync(ct);
+        return new SearchInsightsDto(days, total, top.Select(x => new SearchTermDto(x.Location, x.Count)).ToList(),
+            zero.Select(x => new SearchTermDto(x.Location, x.Count)).ToList());
     }
 
     public Task<IReadOnlyList<DestinationDto>> GetFeaturedDestinationsAsync(CancellationToken ct) =>

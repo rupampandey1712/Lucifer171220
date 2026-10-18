@@ -648,6 +648,34 @@ namespace StaySphere.Infrastructure.Persistence.Migrations
                     b.ToTable("PropertyImages", "catalog");
                 });
 
+            modelBuilder.Entity("StaySphere.Domain.Catalog.SearchQueryLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("Guests")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("Nights")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ResultCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("SearchedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SearchedAt");
+
+                    b.ToTable("SearchQueryLogs", "catalog");
+                });
+
             modelBuilder.Entity("StaySphere.Domain.Catalog.SeasonalPrice", b =>
                 {
                     b.Property<Guid>("Id")

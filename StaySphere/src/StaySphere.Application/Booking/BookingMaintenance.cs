@@ -155,6 +155,8 @@ public sealed class BookingMaintenance(
         var weekAgo = now.AddDays(-7);
         removed += await db.OutboxMessages.Where(m => m.ProcessedAt != null && m.ProcessedAt < weekAgo).ExecuteDeleteAsync(ct);
         removed += await db.InboxMessages.Where(m => m.ProcessedAt < weekAgo).ExecuteDeleteAsync(ct);
+        var searchCutoff = now - Domain.Catalog.SearchQueryLog.Retention;
+        removed += await db.SearchQueryLogs.Where(l => l.SearchedAt < searchCutoff).ExecuteDeleteAsync(ct);
         return removed;
     }
 }

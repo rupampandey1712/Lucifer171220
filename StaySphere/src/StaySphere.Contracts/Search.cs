@@ -48,3 +48,8 @@ public sealed record GeocodeResultDto(string DisplayName, double Latitude, doubl
 
 /// <param name="Code">ISO 3166-1 alpha-2, e.g. PT.</param>
 public sealed record CountryDto(string Code, string Name, string? Flag, IReadOnlyList<string> Currencies);
+
+public sealed record SearchTermDto(string Location, int Searches);
+
+/// <summary>Anonymised demand over the last <paramref name="Days"/> days. Terms searched fewer than 3 times are never shown.</summary>
+public sealed record SearchInsightsDto(int Days, int TotalSearches, IReadOnlyList<SearchTermDto> TopDestinations, IReadOnlyList<SearchTermDto> ZeroResultSearches);

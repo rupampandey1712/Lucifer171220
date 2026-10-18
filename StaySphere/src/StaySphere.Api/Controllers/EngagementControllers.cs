@@ -252,8 +252,14 @@ public sealed class HostController(IPropertyService properties, IReservationServ
 [Route("api/v{version:apiVersion}/admin")]
 [Authorize(Policy = Policies.CanViewAdminDashboard)]
 public sealed class AdminController(IAdminService admin, IReviewService reviews, IPaymentService payments, IPromotionService promotions,
-    IHostVerificationService verification) : ApiControllerBase
+    IHostVerificationService verification, Application.Search.ISearchService search) : ApiControllerBase
 {
+    /// <summary>Anonymised search demand: top destinations and searches that found nothing (last 1–90 days).</summary>
+    [HttpGet("search-insights")]
+    [Authorize(Policy = Policies.CanViewAdminDashboard)]
+    public async Task<ActionResult<Contracts.Search.SearchInsightsDto>> SearchInsights([FromQuery] int days = 30, CancellationToken ct = default) =>
+        Ok(await search.InsightsAsync(days, ct));
+
     /// <summary>Host verification requests, oldest first (status defaults to Pending).</summary>
     [HttpGet("host-verifications")]
     [Authorize(Policy = Policies.CanManageUsers)]

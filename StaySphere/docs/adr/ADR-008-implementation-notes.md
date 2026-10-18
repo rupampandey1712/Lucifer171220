@@ -23,6 +23,10 @@ The first design package was written before any code. Building the system led to
 | Images | quarantine container + async worker | **Synchronous** validation in the API (magic bytes, decode, size limits, re-encode to JPEG which strips EXIF, thumbnail), plus an `IMalwareScanner` port | Fewer moving parts. Defender for Storage plugs in through the port |
 | Seed images / map tiles | — | picsum.photos and OpenStreetMap tiles, with a branded fallback if a host is blocked | Free; no API keys |
 | Resource ownership errors | 404 for foreign resources | **404** for private resources (reservations, conversations, tickets), **403** for modifying someone else's public listing (as the brief's test requires) | Avoids leaking the existence of private data |
+| Search pagination | cursor-based | **Keyset cursor** for `sort=Newest` (`PublishedAt`, `Id`); an opaque page cursor for computed sorts (price, rating, distance), plus `page` for numbered pages in the UI | Keyset is stable under inserts where the order allows it; computed-score sorts can't be keyset-paged cheaply in SQL |
+| Search analytics | — | First-page searches logged **anonymised** (`catalog.SearchQueryLogs`: lower-cased location, guests, nights, result count; no user, IP or dates), deleted after 90 days by the cleanup job. Admin insights hide terms searched fewer than 3 times | Demand insight without building a profile of anyone |
+| Consent | — | Append-only `identity.ConsentRecords` (purpose, granted, policy version, IP). Terms and Privacy are recorded at sign-up and can't be withdrawn short of deleting the account | Proves what each user agreed to and when |
+| Host verification | ID documents + KYC provider | Host submits their legal name (confirmed email required); an admin approves or rejects with a reason; guests see a "Verified host" badge | No KYC provider is available locally; a provider can feed the same `ReviewHostVerification` transition |
 | Validation status codes | — | 400 for request-shape validation (FluentValidation) and **422** for business-rule violations | Clients can tell the two apart |
 
 ## Known gaps (roadmap)
@@ -30,3 +34,5 @@ The first design package was written before any code. Building the system led to
 - Server-side rendering or prerendering of listing pages for SEO. Client-side meta tags and JSON-LD are implemented.
 - k6 performance tests and an OWASP ZAP baseline in CI.
 - Experiences (behind the `Experiences` feature flag).
+- Document-based identity verification through a KYC provider (verification today is an admin review).
+- A separate black-box `StaySphere.ApiTests` project; API-level tests currently live in `StaySphere.IntegrationTests` (in-process `WebApplicationFactory` + real SQL Server).

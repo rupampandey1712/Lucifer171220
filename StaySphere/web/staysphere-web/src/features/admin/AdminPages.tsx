@@ -11,6 +11,7 @@ import { dateTime, money, prettyDate, stayLabel } from '@/lib/format';
 import { toast } from '@/lib/toast';
 import { PromotionsManager } from '@/features/host/Promotions';
 import { HostVerificationQueue } from '@/features/host/Verification';
+import { SearchInsights } from './SearchInsights';
 
 function usePaged<T>(key: string, path: string, params: Record<string, unknown>) {
   return useQuery({ queryKey: ['admin', key, params], queryFn: () => api<Paged<T>>(`${path}${toQuery(params)}`), placeholderData: keepPreviousData });
@@ -155,6 +156,7 @@ export function AdminPaymentsPage() {
         </>
       )}
       <AdminPayoutsSection />
+      <SearchInsights />
       <HostVerificationQueue />
       <div className="mt-12"><PromotionsManager scope="admin" /></div>
     </>

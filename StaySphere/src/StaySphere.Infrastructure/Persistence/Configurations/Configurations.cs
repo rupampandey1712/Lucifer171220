@@ -641,3 +641,14 @@ public static class AmenityCatalog
         new("self-check-in", "Self check-in", "Services", "key-round"),
     ];
 }
+
+internal sealed class SearchQueryLogConfiguration : IEntityTypeConfiguration<SearchQueryLog>
+{
+    public void Configure(EntityTypeBuilder<SearchQueryLog> b)
+    {
+        b.ToTable("SearchQueryLogs", "catalog");
+        b.Property(x => x.Id).ValueGeneratedNever();
+        b.Property(x => x.Location).HasMaxLength(SearchQueryLog.MaxLocationLength);
+        b.HasIndex(x => x.SearchedAt);
+    }
+}
