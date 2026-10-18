@@ -5,7 +5,8 @@ The project lives in `StaySphere/`. Read `StaySphere/README.md` first, then `Sta
 ## Commands (run from `StaySphere/`)
 - Backend build: `dotnet build` (warnings are errors)
 - Backend tests: `dotnet test tests/StaySphere.UnitTests`, `dotnet test tests/StaySphere.ArchitectureTests`,
-  `dotnet test tests/StaySphere.IntegrationTests` (needs Docker — Testcontainers starts SQL Server)
+  `dotnet test tests/StaySphere.IntegrationTests` (needs Docker — Testcontainers starts SQL Server),
+  `STAYSPHERE_API_URL=http://localhost:5173 dotnet test tests/StaySphere.ApiTests` (black-box, against a running stack)
 - New migration: `dotnet tool restore && dotnet ef migrations add <Name> --project src/StaySphere.Infrastructure --startup-project src/StaySphere.Infrastructure --output-dir Persistence/Migrations`
 - Frontend (from `web/staysphere-web`): `npm ci`, `npm run dev`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`
 - Regenerate TS API types after changing API contracts (API running on :8081): `npm run gen:api`

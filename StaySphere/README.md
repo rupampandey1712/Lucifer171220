@@ -125,11 +125,12 @@ cd web/staysphere-web && npm ci && npm run dev # http://localhost:5173 (proxies 
 
 | Suite | Command | What it proves |
 |---|---|---|
-| Unit (74) | `dotnet test tests/StaySphere.UnitTests` | Pricing, cancellation policies, reservation state machine, value objects, validators, PII redaction, request-to-book and payout rules, AI provider selection |
+| Unit (82) | `dotnet test tests/StaySphere.UnitTests` | Pricing, cancellation policies, reservation state machine, value objects, validators, PII redaction, request-to-book and payout rules, AI provider selection |
 | Architecture (6) | `dotnet test tests/StaySphere.ArchitectureTests` | Layer and module boundaries; controllers can't touch the DB; AI tools can't reach infrastructure |
-| Integration (32) | `dotnet test tests/StaySphere.IntegrationTests` | Real SQL Server via Testcontainers. **20 concurrent bookings → exactly one wins**; duplicate webhook → one capture; idempotent reservations; hold expiry; refunds through the event pipeline; authorization (403/404); review rules; AI confirmation gate; host accept (capture) / decline (void) / expiry; **concurrent payout requests → exactly one payout**; failed transfers reversed in the ledger; the Agent Framework agent calling real tools through the Gemini SDK and an OpenAI-compatible (Foundry Local) client against stub models |
-| Frontend (16) | `cd web/staysphere-web && npm test` | Components, API client (refresh single-flight, ProblemDetails), card tokenization |
-| E2E (9) | `npx playwright test` (stack running) | Log in → search → reserve → pay → confirmed; host dashboard; host accepts a booking request and sees payouts; RBAC; mobile smoke |
+| Integration (65) | `dotnet test tests/StaySphere.IntegrationTests` | Real SQL Server via Testcontainers. **20 concurrent bookings → exactly one wins**; duplicate webhook → one capture; idempotent reservations; hold expiry; refunds through the event pipeline; authorization (403/404); review rules; AI confirmation gate; host accept (capture) / decline (void) / expiry; **concurrent payout requests → exactly one payout**; failed transfers reversed in the ledger; the Agent Framework agent calling real tools through the Gemini SDK and an OpenAI-compatible (Foundry Local) client against stub models |
+| Frontend (18) | `cd web/staysphere-web && npm test` | Components, API client (refresh single-flight, ProblemDetails), card tokenization |
+| Black-box API (9) | `STAYSPHERE_API_URL=http://localhost:5173 dotnet test tests/StaySphere.ApiTests` (stack running; skipped otherwise) | HTTP only, through nginx, referencing nothing but the public contracts: security headers, 401/403/400 problem documents, sign-up → consents, book → pay with an **idempotent replay**, concurrent holds on the same nights → one wins, tampered quote rejected |
+| E2E (10) | `npx playwright test` (stack running) | Log in → search → reserve → pay → confirmed; host dashboard; host accepts a booking request and sees payouts; RBAC; mobile smoke |
 
 ## Where things are
 

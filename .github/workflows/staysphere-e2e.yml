@@ -25,6 +25,12 @@ jobs:
           docker compose ps
           docker compose logs --tail 300 api
           exit 1
+      - uses: actions/setup-dotnet@v4
+        with: { global-json-file: StaySphere/global.json }
+      - name: Black-box API tests (through the web container's nginx)
+        working-directory: StaySphere
+        env: { STAYSPHERE_API_URL: 'http://localhost:5173' }
+        run: dotnet test tests/StaySphere.ApiTests --logger "console;verbosity=normal"
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: npm, cache-dependency-path: StaySphere/web/staysphere-web/package-lock.json }
       - name: Playwright

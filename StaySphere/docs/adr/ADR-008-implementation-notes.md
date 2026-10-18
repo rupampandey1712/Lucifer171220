@@ -35,4 +35,3 @@ The first design package was written before any code. Building the system led to
 - k6 performance tests and an OWASP ZAP baseline in CI.
 - Experiences (behind the `Experiences` feature flag).
 - Document-based identity verification through a KYC provider (verification today is an admin review).
-- A separate black-box `StaySphere.ApiTests` project; API-level tests currently live in `StaySphere.IntegrationTests` (in-process `WebApplicationFactory` + real SQL Server).

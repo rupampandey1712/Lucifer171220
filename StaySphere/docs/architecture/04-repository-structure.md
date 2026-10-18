@@ -33,7 +33,8 @@ StaySphere/
 │   ├── StaySphere.UnitTests/          # Domain + Application (no I/O)
 │   ├── StaySphere.IntegrationTests/   # Testcontainers: SQL, Redis, Azurite; EF, outbox, concurrency
 │   ├── StaySphere.ApiTests/           # WebApplicationFactory + Testcontainers: HTTP, auth, ProblemDetails
-│   └── StaySphere.ArchitectureTests/  # NetArchTest layer rules
+│   ├── StaySphere.ArchitectureTests/  # NetArchTest layer rules
+│   └── StaySphere.ApiTests/           # black-box HTTP tests against a running stack
 ├── web/staysphere-web/
 │   ├── src/ (see frontend doc)  e2e/ (Playwright)  Dockerfile  nginx.conf
 ├── infrastructure/

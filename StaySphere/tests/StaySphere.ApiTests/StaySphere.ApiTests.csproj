@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Black-box API tests: HTTP only, against a running stack (STAYSPHERE_API_URL). Only the public contracts are referenced. -->
+  <PropertyGroup><IsPackable>false</IsPackable></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\StaySphere.Contracts\StaySphere.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup><Using Include="Xunit" /><Using Include="Shouldly" /></ItemGroup>
+</Project>
