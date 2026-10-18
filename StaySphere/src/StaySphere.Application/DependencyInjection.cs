@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<IPropertyService, PropertyService>();
+        services.AddScoped<ISeoService, SeoService>();
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<ISearchProvider, DatabaseSearchProvider>();
         services.AddScoped<IAvailabilityService, AvailabilityService>();

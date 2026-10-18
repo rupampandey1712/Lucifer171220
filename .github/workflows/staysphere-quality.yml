@@ -8,7 +8,7 @@ on:
       duration: { description: 'k6 steady-state duration', default: '1m' }
   schedule: [{ cron: '0 4 * * 1' }]
   pull_request:
-    paths: ['StaySphere/web/staysphere-web/nginx.conf', 'StaySphere/src/StaySphere.Api/Program.cs', 'StaySphere/tests/perf/**', 'StaySphere/tests/security/**']
+    paths: ['StaySphere/web/staysphere-web/nginx.conf', 'StaySphere/web/staysphere-web/security-headers.conf', 'StaySphere/src/StaySphere.Api/Program.cs', 'StaySphere/tests/perf/**', 'StaySphere/tests/security/**']
 
 jobs:
   load:
@@ -49,5 +49,6 @@ jobs:
           rules_file_name: StaySphere/tests/security/zap-rules.tsv
           # -I: warnings are reported, only rules marked FAIL in the rules file break the build. -j: also run the AJAX spider for the SPA.
           cmd_options: '-I -j'
+          fail_action: true
           allow_issue_writing: false
           artifact_name: zap-report

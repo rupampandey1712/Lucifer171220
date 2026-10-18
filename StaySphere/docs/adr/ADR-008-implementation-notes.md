@@ -27,10 +27,10 @@ The first design package was written before any code. Building the system led to
 | Search analytics | — | First-page searches logged **anonymised** (`catalog.SearchQueryLogs`: lower-cased location, guests, nights, result count; no user, IP or dates), deleted after 90 days by the cleanup job. Admin insights hide terms searched fewer than 3 times | Demand insight without building a profile of anyone |
 | Consent | — | Append-only `identity.ConsentRecords` (purpose, granted, policy version, IP). Terms and Privacy are recorded at sign-up and can't be withdrawn short of deleting the account | Proves what each user agreed to and when |
 | Host verification | ID documents + KYC provider | Host submits their legal name (confirmed email required); an admin approves or rejects with a reason; guests see a "Verified host" badge | No KYC provider is available locally; a provider can feed the same `ReviewHostVerification` transition |
+| SEO | SSR / prerendering | **Dynamic rendering**: nginx sends crawler and link-preview user agents on `/property/{id}` to `/seo/property/{id}` (internal-only), which the API renders as plain HTML (title, description, canonical, OpenGraph, schema.org `VacationRental` JSON-LD, the listing text, amenities and recent reviews). People get the SPA at the same URL. `/sitemap.xml` (published listings, cached 1 h) and `/robots.txt` come from the API | No Node SSR server to run and keep in sync with the SPA; the content matches what people see, so it isn't cloaking. All text is HTML-encoded and the JSON-LD serializer escapes `<`, so listing text can't inject markup |
 | Validation status codes | — | 400 for request-shape validation (FluentValidation) and **422** for business-rule violations | Clients can tell the two apart |
 
 ## Known gaps (roadmap)
 - Real payout rails (the payout provider is a simulator behind `IPayoutProvider`).
-- Server-side rendering or prerendering of listing pages for SEO. Client-side meta tags and JSON-LD are implemented.
 - Experiences (behind the `Experiences` feature flag).
 - Document-based identity verification through a KYC provider (verification today is an admin review).

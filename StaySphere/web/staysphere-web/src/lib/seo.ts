@@ -10,7 +10,7 @@ function setMeta(attr: 'name' | 'property', key: string, content: string) {
   el.content = content;
 }
 
-/** Client-side SEO metadata (title, description, OpenGraph, canonical, JSON-LD). Prerendering is a roadmap item. */
+/** Client-side SEO metadata for people browsing the SPA. Crawlers get the server-rendered equivalent (nginx → /seo/property/{id}). */
 export function useSeo({ title, description, image, jsonLd }: { title: string; description?: string; image?: string; jsonLd?: object }) {
   useEffect(() => {
     document.title = `${title} · StaySphere`;

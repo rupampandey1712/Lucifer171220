@@ -53,7 +53,7 @@ policy with a cross-tenant case.
 | Area | Control |
 |---|---|
 | Transport | HTTPS only, HSTS (prod), TLS at Front Door |
-| Headers | CSP (`default-src 'self'`; tiles and images from allow-listed hosts), `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors 'none'` |
+| Headers | CSP (`default-src 'self'`; tiles and images from allow-listed hosts; `base-uri`, `form-action` and `frame-ancestors` locked), `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `X-Frame-Options`. nginx sets them from one snippet (`security-headers.conf`) included in every `location` that adds its own headers, because nginx otherwise drops server-level headers there. `server_tokens off`. ZAP fails the build if any go missing |
 | CORS | explicit SPA origins per environment, credentials only for `/auth/*` |
 | CSRF | Bearer tokens aren't sent automatically. The refresh cookie is `SameSite=Strict`, path-scoped, and needs a custom header. |
 | XSS | React escaping; no `dangerouslySetInnerHTML`; user-generated text is stored raw and rendered as text; Markdown is not supported in messages |
