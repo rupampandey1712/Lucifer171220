@@ -12,6 +12,29 @@ public sealed class PayoutAccount : AggregateRoot
     /// <summary>e.g. "PT50 •••• 1234".</summary>
     public string MaskedAccount { get; private set; } = default!;
     public string Country { get; private set; } = default!;
+    /// <summary>The host's account at the payout provider (Stripe Connect <c>acct_…</c>) when bank details are collected there.</summary>
+    public string? ProviderAccountId { get; private set; }
+    /// <summary>False until the provider has verified the host and their bank account (always true for directly entered IBANs).</summary>
+    public bool PayoutsEnabled { get; private set; } = true;
+
+    /// <summary>Where transfers go: the provider account when there is one, otherwise the (simulated) bank account.</summary>
+    public string Destination => ProviderAccountId ?? MaskedAccount;
+
+    /// <summary>Starts a provider-hosted onboarding: the provider collects identity and bank details, so we never hold them.</summary>
+    public static PayoutAccount CreateConnected(Guid hostId, string accountHolder, string providerAccountId, string country, DateTimeOffset now) => new()
+    {
+        HostId = hostId, AccountHolder = accountHolder.Trim(), MaskedAccount = "Pending setup", Country = country.ToUpperInvariant(),
+        ProviderAccountId = providerAccountId, PayoutsEnabled = false, CreatedAt = now, UpdatedAt = now,
+    };
+
+    /// <summary>Mirrors the provider's view of the account after onboarding (or a later change on their side).</summary>
+    public void SyncConnected(bool payoutsEnabled, string? accountHolder, string? bankLast4, string? country)
+    {
+        PayoutsEnabled = payoutsEnabled;
+        if (!string.IsNullOrWhiteSpace(accountHolder)) AccountHolder = accountHolder.Trim()[..Math.Min(accountHolder.Trim().Length, 100)];
+        MaskedAccount = bankLast4 is { Length: 4 } ? $"Bank •••• {bankLast4}" : payoutsEnabled ? "Linked with provider" : "Pending setup";
+        if (country is { Length: 2 }) Country = country.ToUpperInvariant();
+    }
 
     public static Result<PayoutAccount> Create(Guid hostId, string accountHolder, string iban, string country, DateTimeOffset now)
     {
@@ -26,6 +49,7 @@ public sealed class PayoutAccount : AggregateRoot
 
     public Result Update(string accountHolder, string iban, string country)
     {
+        if (ProviderAccountId is not null) return Error.Validation("payout.provider_account", "This account's bank details are managed by the payout provider.");
         var result = Validate(accountHolder, iban, country);
         if (result.IsFailure) return result;
         AccountHolder = accountHolder.Trim();

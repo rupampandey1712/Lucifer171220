@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using StaySphere.Application.Abstractions;
 using StaySphere.Application.Common;
+using StaySphere.Application.Identity;
 using StaySphere.Contracts;
 using StaySphere.Contracts.Payments;
 using StaySphere.Domain.Booking;
@@ -14,6 +16,10 @@ public interface IPayoutService
 {
     Task<PayoutSummaryDto> GetSummaryAsync(CancellationToken ct);
     Task<Result<PayoutAccountDto>> SetAccountAsync(PayoutAccountRequest request, CancellationToken ct);
+    /// <summary>Provider-hosted onboarding (Stripe Connect): creates the host's connected account if needed and returns the link.</summary>
+    Task<Result<PayoutOnboardingDto>> StartOnboardingAsync(CancellationToken ct);
+    /// <summary>Re-reads the connected account from the provider (after the host returns from onboarding).</summary>
+    Task<Result<PayoutAccountDto>> RefreshAccountAsync(CancellationToken ct);
     Task<Result<IReadOnlyList<PayoutDto>>> RequestPayoutAsync(CancellationToken ct);
     Task<int> RunScheduledPayoutsAsync(CancellationToken ct);
     Task<PagedResult<PayoutDto>> ListAllAsync(string? status, int page, int pageSize, CancellationToken ct);
@@ -32,6 +38,7 @@ public sealed class PayoutService(
     ICurrentUser currentUser,
     IAuditLogger audit,
     TimeProvider clock,
+    IOptions<AppOptions> appOptions,
     ILogger<PayoutService> logger) : IPayoutService
 {
     public static readonly TimeSpan ReleaseDelayAfterCheckIn = TimeSpan.FromHours(24);
@@ -53,12 +60,56 @@ public sealed class PayoutService(
 
         var history = await Project(db.HostPayouts.AsNoTracking().Where(p => p.HostId == hostId).OrderByDescending(p => p.CreatedAt).Take(50))
             .ToListAsync(ct);
-        return new PayoutSummaryDto(account is null ? null : new PayoutAccountDto(account.AccountHolder, account.MaskedAccount, account.Country),
-            balances, history, Schedule);
+        return new PayoutSummaryDto(account is null ? null : ToDto(account), balances, history, Schedule, provider.UsesHostedOnboarding);
+    }
+
+    private static PayoutAccountDto ToDto(PayoutAccount a, string? requirement = null) =>
+        new(a.AccountHolder, a.MaskedAccount, a.Country, a.PayoutsEnabled, requirement);
+
+    public async Task<Result<PayoutOnboardingDto>> StartOnboardingAsync(CancellationToken ct)
+    {
+        if (!provider.UsesHostedOnboarding)
+            return Error.Validation("payout.onboarding_unavailable", "Add your bank account with the payout account form.");
+        var hostId = currentUser.RequireUserId();
+        var account = await db.PayoutAccounts.FirstOrDefaultAsync(a => a.HostId == hostId, ct);
+        if (account is { ProviderAccountId: null })
+            return Error.Conflict("payout.account_exists", "You already have a bank account on file. Contact support to switch to provider payouts.");
+        if (account is null)
+        {
+            var host = await db.Users.AsNoTracking().Where(u => u.Id == hostId).Select(u => new { u.Email, u.DisplayName }).FirstAsync(ct);
+            var country = await db.Properties.AsNoTracking().Where(p => p.HostId == hostId && p.Address != null)
+                .Select(p => p.Address!.CountryCode).FirstOrDefaultAsync(ct) ?? "US";
+            var providerAccountId = await provider.CreateConnectedAccountAsync(hostId, host.Email, country, ct);
+            account = PayoutAccount.CreateConnected(hostId, host.DisplayName, providerAccountId, country, clock.GetUtcNow());
+            db.PayoutAccounts.Add(account);
+            audit.Record("payout.account_connected", nameof(PayoutAccount), hostId.ToString(), new { providerAccountId });
+            await db.SaveChangesAsync(ct);
+        }
+
+        var web = appOptions.Value.PublicWebUrl.TrimEnd('/');
+        var url = await provider.CreateOnboardingLinkAsync(account.ProviderAccountId!, $"{web}/host/earnings?payouts=return",
+            $"{web}/host/earnings?payouts=refresh", ct);
+        return new PayoutOnboardingDto(url);
+    }
+
+    public async Task<Result<PayoutAccountDto>> RefreshAccountAsync(CancellationToken ct)
+    {
+        var hostId = currentUser.RequireUserId();
+        var account = await db.PayoutAccounts.FirstOrDefaultAsync(a => a.HostId == hostId, ct);
+        if (account?.ProviderAccountId is null) return Error.NotFound("payout.no_provider_account", "There is no linked payout account to refresh.");
+        var status = await provider.GetConnectedAccountAsync(account.ProviderAccountId, ct);
+        var wasEnabled = account.PayoutsEnabled;
+        account.SyncConnected(status.PayoutsEnabled, status.AccountHolder, status.BankLast4, status.Country);
+        if (wasEnabled != account.PayoutsEnabled)
+            audit.Record(account.PayoutsEnabled ? "payout.account_enabled" : "payout.account_disabled", nameof(PayoutAccount), hostId.ToString());
+        await db.SaveChangesAsync(ct);
+        return ToDto(account, status.Requirement);
     }
 
     public async Task<Result<PayoutAccountDto>> SetAccountAsync(PayoutAccountRequest request, CancellationToken ct)
     {
+        if (provider.UsesHostedOnboarding)
+            return Error.Validation("payout.hosted_onboarding", "Bank details are collected securely by our payout provider. Use \"Set up payouts\".");
         var hostId = currentUser.RequireUserId();
         var account = await db.PayoutAccounts.FirstOrDefaultAsync(a => a.HostId == hostId, ct);
         if (account is null)
@@ -77,7 +128,7 @@ public sealed class PayoutService(
         // Never log or audit the account number itself.
         audit.Record("payout.account_updated", nameof(PayoutAccount), hostId.ToString(), new { account.MaskedAccount });
         await db.SaveChangesAsync(ct);
-        return new PayoutAccountDto(account.AccountHolder, account.MaskedAccount, account.Country);
+        return ToDto(account);
     }
 
     public async Task<Result<IReadOnlyList<PayoutDto>>> RequestPayoutAsync(CancellationToken ct)
@@ -85,12 +136,13 @@ public sealed class PayoutService(
         var hostId = currentUser.RequireUserId();
         var account = await db.PayoutAccounts.AsNoTracking().FirstOrDefaultAsync(a => a.HostId == hostId, ct);
         if (account is null) return Error.Validation("payout.no_account", "Add a payout account before requesting a payout.");
+        if (!account.PayoutsEnabled) return Error.Validation("payout.not_enabled", "Finish setting up payouts with our payout provider first.");
 
         var results = new List<PayoutDto>();
         var lines = await OutstandingAsync(hostId, ct);
         foreach (var currency in lines.Where(l => l.Available && l.Outstanding > 0).Select(l => l.Currency).Distinct())
         {
-            var payout = await PayAsync(hostId, currency, account.MaskedAccount, automatic: false, ct);
+            var payout = await PayAsync(hostId, currency, account.Destination, automatic: false, ct);
             if (payout.IsFailure && payout.Error!.Type == ErrorType.Conflict) return payout.Error;
             if (payout.IsSuccess) results.Add(payout.Value);
         }
@@ -103,14 +155,15 @@ public sealed class PayoutService(
     public async Task<int> RunScheduledPayoutsAsync(CancellationToken ct)
     {
         await ReconcileStuckAsync(ct);
-        var hosts = await db.PayoutAccounts.AsNoTracking().Select(a => new { a.HostId, a.MaskedAccount }).ToListAsync(ct);
+        var hosts = await db.PayoutAccounts.AsNoTracking().Where(a => a.PayoutsEnabled)
+            .Select(a => new { a.HostId, Destination = a.ProviderAccountId ?? a.MaskedAccount }).ToListAsync(ct);
         var paid = 0;
         foreach (var host in hosts)
         {
             var lines = await OutstandingAsync(host.HostId, ct);
             foreach (var currency in lines.Where(l => l.Available && l.Outstanding > 0).Select(l => l.Currency).Distinct())
             {
-                var result = await PayAsync(host.HostId, currency, host.MaskedAccount, automatic: true, ct);
+                var result = await PayAsync(host.HostId, currency, host.Destination, automatic: true, ct);
                 if (result.IsSuccess && result.Value.Status == nameof(PayoutStatus.Paid)) paid++;
             }
         }

@@ -17,12 +17,17 @@ public sealed record FakeWebhookPayload(string EventId, string Type, string Paym
 
 public sealed record PayoutAccountRequest(string AccountHolder, string Iban, string Country);
 
-public sealed record PayoutAccountDto(string AccountHolder, string MaskedAccount, string Country);
+/// <param name="PayoutsEnabled">False while provider onboarding (identity, bank account) is incomplete.</param>
+/// <param name="Requirement">What the host still needs to do at the provider, if anything.</param>
+public sealed record PayoutAccountDto(string AccountHolder, string MaskedAccount, string Country, bool PayoutsEnabled = true, string? Requirement = null);
+
+public sealed record PayoutOnboardingDto(string Url);
 
 public sealed record CurrencyBalanceDto(string Currency, decimal Available, decimal Pending, decimal PaidOut);
 
 public sealed record PayoutDto(Guid Id, Guid HostId, string? HostName, decimal Amount, string Currency, string Status, string Destination,
     bool Automatic, string? FailureReason, DateTimeOffset CreatedAt, DateTimeOffset? PaidAt, int ReservationCount);
 
+/// <param name="HostedOnboarding">True when bank details are collected by the payout provider (Stripe Connect) rather than a form here.</param>
 public sealed record PayoutSummaryDto(PayoutAccountDto? Account, IReadOnlyList<CurrencyBalanceDto> Balances, IReadOnlyList<PayoutDto> Payouts,
-    string Schedule);
+    string Schedule, bool HostedOnboarding = false);

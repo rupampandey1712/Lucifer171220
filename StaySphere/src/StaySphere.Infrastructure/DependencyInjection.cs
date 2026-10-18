@@ -95,7 +95,17 @@ public static class DependencyInjection
         // Payments — adapter chosen here; Stripe/Adyen adapters would register under the same port.
         services.AddHttpClient("fake-payments-webhook", c => c.Timeout = TimeSpan.FromSeconds(10));
         services.AddSingleton<IPaymentProvider, LocalFakePaymentProvider>();
-        services.AddSingleton<IPayoutProvider, FakePayoutProvider>();
+        var payouts = configuration.GetSection(PayoutOptions.Section).Get<PayoutOptions>() ?? new PayoutOptions();
+        if (payouts.Provider.Equals("StripeConnect", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(payouts.Stripe.SecretKey))
+                throw new InvalidOperationException("Payouts:Provider is StripeConnect but Payouts:Stripe:SecretKey is not set.");
+            services.AddHttpClient<IPayoutProvider, StripeConnectPayoutProvider>(c => StripeConnectPayoutProvider.Configure(c, payouts.Stripe));
+        }
+        else
+        {
+            services.AddSingleton<IPayoutProvider, FakePayoutProvider>();
+        }
 
         AddExternalServices(services, configuration);
         AddMessaging(services, configuration);

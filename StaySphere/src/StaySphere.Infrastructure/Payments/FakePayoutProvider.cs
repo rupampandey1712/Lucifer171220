@@ -11,6 +11,8 @@ public sealed class FakePayoutProvider : IPayoutProvider
 {
     private static readonly ConcurrentDictionary<Guid, PayoutTransferResult> Transfers = new();
 
+    public bool UsesHostedOnboarding => false;
+
     public Task<PayoutTransferResult> SendAsync(Guid payoutId, string destination, decimal amount, string currency, CancellationToken cancellationToken) =>
         Task.FromResult(Transfers.GetOrAdd(payoutId, _ => destination.EndsWith("0000", StringComparison.Ordinal)
             ? new PayoutTransferResult(false, null, "The receiving bank rejected the transfer (test account).")

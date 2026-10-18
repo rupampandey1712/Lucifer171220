@@ -90,7 +90,9 @@ The **RL** column gives the rate-limit policy.
 | POST | /payments/webhook/{provider} | Signature-verified (no JWT) | event-id based |
 | POST | /admin/payments/{id}/refund | `CanProcessRefund` | ✅ |
 | GET | /host/earnings?from&to, /host/payouts | Host | |
-| PUT | /host/payout-account `{accountHolder, iban, country}` | Host | |
+| PUT | /host/payout-account `{accountHolder, iban, country}` | Host | | Simulator only; 422 when Stripe Connect collects bank details |
+| POST | /host/payouts/onboarding → `{url}` | Host | | Stripe Connect hosted onboarding link (creates the connected account once per host) |
+| POST | /host/payouts/account/refresh | Host | | Re-reads the connected account (payouts enabled, bank last 4, outstanding requirements) |
 | POST | /host/payouts (pay out available balance now) | Host, RL `payment` | ✅ |
 | GET | /admin/payouts | Admin | |
 | GET, POST | /host/promotions; POST /host/promotions/{id}/deactivate | Host (own listings only) | |

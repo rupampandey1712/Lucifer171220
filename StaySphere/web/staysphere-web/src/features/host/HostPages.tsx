@@ -11,6 +11,7 @@ import { hasRole, useAuthStore } from '@/lib/auth-store';
 import { money, pluralize, prettyDate, stayLabel } from '@/lib/format';
 import { toast } from '@/lib/toast';
 import { format, parseISO } from 'date-fns';
+import { HostedPayoutAccount } from './HostedPayoutAccount';
 
 export function BecomeHostPage() {
   const user = useAuthStore((s) => s.user);
@@ -240,7 +241,7 @@ export function HostEarningsPage() {
         <div className="card p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div><h2 className="text-lg font-semibold">Balance</h2><p className="text-sm text-slate-500">{p.schedule}</p></div>
-            <button className="btn-primary" disabled={!p.account || available.length === 0 || requestPayout.isPending} onClick={() => requestPayout.mutate()}>
+            <button className="btn-primary" disabled={!p.account?.payoutsEnabled || available.length === 0 || requestPayout.isPending} onClick={() => requestPayout.mutate()}>
               <Banknote className="h-4 w-4" /> Pay out now
             </button>
           </div>
@@ -253,7 +254,7 @@ export function HostEarningsPage() {
             </table>
           )}
         </div>
-        <div className="card p-6">
+        {p.hostedOnboarding ? <HostedPayoutAccount account={p.account} /> : <div className="card p-6">
           <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold"><Landmark className="h-5 w-5" /> Payout account</h2>
           {p.account && !editing ? (
             <>
@@ -271,7 +272,7 @@ export function HostEarningsPage() {
               <div className="flex gap-2"><button className="btn-primary" disabled={saveAccount.isPending}>Save</button>{p.account && <button type="button" className="btn-ghost" onClick={() => setEditing(false)}>Cancel</button>}</div>
             </form>
           )}
-        </div>
+        </div>}
       </section>
 
       <h2 className="mt-10 mb-3 font-semibold">Payout history</h2>

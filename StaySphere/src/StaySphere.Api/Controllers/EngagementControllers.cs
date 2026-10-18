@@ -225,6 +225,14 @@ public sealed class HostController(IPropertyService properties, IReservationServ
         FromResult(await payouts.SetAccountAsync(request, ct));
 
     /// <summary>Pay out all currently available earnings now (one payout per currency).</summary>
+    /// <summary>Stripe Connect: returns a link to the provider's onboarding (identity + bank details are entered there, never here).</summary>
+    [HttpPost("payouts/onboarding")]
+    public async Task<ActionResult<PayoutOnboardingDto>> StartPayoutOnboarding(CancellationToken ct) => FromResult(await payouts.StartOnboardingAsync(ct));
+
+    /// <summary>Re-reads the connected account after the host returns from onboarding.</summary>
+    [HttpPost("payouts/account/refresh")]
+    public async Task<ActionResult<PayoutAccountDto>> RefreshPayoutAccount(CancellationToken ct) => FromResult(await payouts.RefreshAccountAsync(ct));
+
     [HttpPost("payouts")]
     [Idempotent("host.payout")]
     [EnableRateLimiting(RateLimitPolicies.Payment)]

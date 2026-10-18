@@ -359,6 +359,8 @@ internal sealed class PayoutAccountConfiguration : IEntityTypeConfiguration<Payo
         b.Property(x => x.AccountHolder).HasMaxLength(100);
         b.Property(x => x.MaskedAccount).HasMaxLength(40);
         b.Property(x => x.Country).HasMaxLength(2);
+        b.Property(x => x.ProviderAccountId).HasMaxLength(64);
+        b.Ignore(x => x.Destination);
         b.Property(x => x.RowVersion).IsRowVersion();
         b.HasOne<User>().WithMany().HasForeignKey(x => x.HostId).OnDelete(DeleteBehavior.Restrict);
         b.Ignore(x => x.DomainEvents);
