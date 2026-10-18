@@ -9,6 +9,7 @@ import { Badge, Modal, PageHeader } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { prettyDate } from '@/lib/format';
 import { toast } from '@/lib/toast';
+import { ConsentSettings } from './ConsentSettings';
 
 export function ProfilePage() {
   const user = useAuthStore((s) => s.user)!;
@@ -59,6 +60,7 @@ export function ProfilePage() {
       <section className="card p-6">
         <h2 className="mb-2 text-lg font-semibold">Privacy</h2>
         <p className="mb-4 text-sm text-slate-600">Download a copy of your personal data, or permanently delete your account. Reviews and messages are anonymised.</p>
+        <ConsentSettings />
         <div className="flex flex-wrap gap-3">
           <button className="btn-secondary" onClick={exportData}><Download className="h-4 w-4" /> Export my data</button>
           <button className="btn-ghost text-red-700" onClick={() => setDeleteOpen(true)}><Trash2 className="h-4 w-4" /> Delete account</button>

@@ -17,3 +17,8 @@ public sealed record AuthResponse(string AccessToken, DateTimeOffset AccessToken
 public sealed record AuthResult(AuthResponse Response, string RefreshToken, DateTimeOffset RefreshTokenExpiresAt);
 
 public sealed record UpdateProfileRequest(string DisplayName, string? Bio, string PreferredCurrency);
+
+/// <param name="Purpose">Terms, Privacy, MarketingEmails or ProductAnalytics.</param>
+public sealed record ConsentDto(string Purpose, bool Granted, bool Required, string PolicyVersion, DateTimeOffset? RecordedAt);
+
+public sealed record UpdateConsentRequest(bool Granted);

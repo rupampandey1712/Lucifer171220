@@ -813,6 +813,41 @@ namespace StaySphere.Infrastructure.Persistence.Migrations
                     b.ToTable("Notifications", "engagement");
                 });
 
+            modelBuilder.Entity("StaySphere.Domain.Identity.ConsentRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Granted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("nvarchar(45)");
+
+                    b.Property<string>("PolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Purpose", "RecordedAt");
+
+                    b.ToTable("ConsentRecords", "identity");
+                });
+
             modelBuilder.Entity("StaySphere.Domain.Identity.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")

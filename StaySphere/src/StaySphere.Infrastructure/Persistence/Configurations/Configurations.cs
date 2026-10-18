@@ -46,6 +46,19 @@ internal sealed class UserRoleConfiguration : IEntityTypeConfiguration<UserRole>
     }
 }
 
+internal sealed class ConsentRecordConfiguration : IEntityTypeConfiguration<ConsentRecord>
+{
+    public void Configure(EntityTypeBuilder<ConsentRecord> b)
+    {
+        b.ToTable("ConsentRecords", "identity");
+        b.Property(x => x.Id).ValueGeneratedNever();
+        b.Property(x => x.Purpose).HasConversion<string>().HasMaxLength(30);
+        b.Property(x => x.PolicyVersion).HasMaxLength(20);
+        b.Property(x => x.IpAddress).HasMaxLength(45);
+        b.HasIndex(x => new { x.UserId, x.Purpose, x.RecordedAt });
+    }
+}
+
 internal sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
 {
     public void Configure(EntityTypeBuilder<RefreshToken> b)

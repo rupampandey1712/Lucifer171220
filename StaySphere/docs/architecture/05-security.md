@@ -64,7 +64,7 @@ policy with a cross-tenant case.
 | Logging | Serilog destructuring policies redact `password`, `token`, `authorization`, `cardNumber`, email (hashed). Query strings for hubs are dropped. |
 | Payments | no PAN storage; tokens only; webhook HMAC + timestamp; idempotency |
 | Audit | login/logout/failed login, property create/update/publish, reservation lifecycle, payments/refunds, admin actions, suspensions, data export/delete. Records actor, IP, user agent hash and correlation ID. Insert-only. |
-| Privacy | `/me/export` (JSON bundle), account deletion anonymises PII (reviews and messages kept as "Former user"), consent records, data minimisation in DTOs (host never sees guest email/phone) |
+| Privacy | `/me/export` (JSON bundle), account deletion anonymises PII (reviews and messages kept as "Former user"), append-only consent records (`identity.ConsentRecords`, policy version + IP, toggles on the profile page, included in the export), data minimisation in DTOs (host never sees guest email/phone) |
 | Supply chain | Dependabot, `dotnet list package --vulnerable`, `npm audit`, CodeQL, Trivy image scan, SBOM (CycloneDX), pinned base image digests |
 
 ## Threat model (STRIDE summary)

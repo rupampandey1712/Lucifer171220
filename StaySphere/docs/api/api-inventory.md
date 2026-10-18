@@ -28,6 +28,8 @@ The **RL** column gives the rate-limit policy.
 | GET/PUT | /me, /me/profile | User | | |
 | POST | /me/avatar | User | | `upload` |
 | GET | /me/export | User | | `auth` (GDPR export) |
+| GET | /me/consents | User | | Terms, Privacy, MarketingEmails, ProductAnalytics with policy version |
+| PUT | /me/consents/{purpose} | User | | Append-only record; withdrawing Terms/Privacy → 422 |
 | DELETE | /me | User | | (anonymise and delete) |
 
 ## Catalog & hosting

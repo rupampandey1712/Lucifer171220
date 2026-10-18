@@ -61,6 +61,9 @@ public sealed class AuthService(
         var now = clock.GetUtcNow();
         var user = User.Register(address, request.DisplayName, hasher.Hash(request.Password), now);
         db.Users.Add(user);
+        // Signing up accepts the current Terms and Privacy Policy; record it as evidence (optional consents start off).
+        db.ConsentRecords.Add(ConsentRecord.Record(user.Id, ConsentPurpose.Terms, true, currentUser.IpAddress, now));
+        db.ConsentRecords.Add(ConsentRecord.Record(user.Id, ConsentPurpose.Privacy, true, currentUser.IpAddress, now));
         var rawToken = CreateUserToken(user.Id, UserTokenPurpose.EmailVerification, TimeSpan.FromDays(2));
         audit.Record("user.registered", nameof(User), user.Id.ToString(), actorOverride: user.Id);
 

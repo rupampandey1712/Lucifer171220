@@ -19,8 +19,17 @@ namespace StaySphere.Api.Controllers;
 
 [Route("api/v{version:apiVersion}/me")]
 [Authorize]
-public sealed class MeController(IProfileService profiles, IAuthService auth) : ApiControllerBase
+public sealed class MeController(IProfileService profiles, IAuthService auth, IConsentService consents) : ApiControllerBase
 {
+    /// <summary>Current consent state per purpose (Terms, Privacy, MarketingEmails, ProductAnalytics).</summary>
+    [HttpGet("consents")]
+    public async Task<ActionResult<IReadOnlyList<ConsentDto>>> Consents(CancellationToken ct) => Ok(await consents.GetMineAsync(ct));
+
+    /// <summary>Grant or withdraw an optional consent. Every change is recorded with the policy version.</summary>
+    [HttpPut("consents/{purpose}")]
+    public async Task<ActionResult<ConsentDto>> SetConsent(string purpose, UpdateConsentRequest request, CancellationToken ct) =>
+        FromResult(await consents.SetAsync(purpose, request.Granted, ct));
+
     [HttpGet]
     public async Task<ActionResult<UserDto>> Get(CancellationToken ct) =>
         await profiles.GetMeAsync(ct) is { } me ? Ok(me) : NotFound();

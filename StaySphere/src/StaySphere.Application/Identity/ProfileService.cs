@@ -80,9 +80,11 @@ public sealed class ProfileService(
         var messages = await db.Messages.AsNoTracking().Where(m => m.SenderId == id)
             .Select(m => new { m.Id, m.ConversationId, m.Body, m.SentAt }).ToListAsync(ct);
         var favorites = await db.Favorites.AsNoTracking().Where(f => f.UserId == id).Select(f => new { f.PropertyId, f.CreatedAt }).ToListAsync(ct);
+        var consents = await db.ConsentRecords.AsNoTracking().Where(c => c.UserId == id).OrderBy(c => c.RecordedAt)
+            .Select(c => new { Purpose = c.Purpose.ToString(), c.Granted, c.PolicyVersion, c.RecordedAt }).ToListAsync(ct);
         audit.Record("user.data_exported", nameof(User), id.ToString());
         await db.SaveChangesAsync(ct);
-        return new { exportedAt = clock.GetUtcNow(), profile = UserMapper.ToDto(user), reservations, reviews, messages, favorites };
+        return new { exportedAt = clock.GetUtcNow(), profile = UserMapper.ToDto(user), reservations, reviews, messages, favorites, consents };
     }
 
     public async Task<Result> DeleteAccountAsync(CancellationToken ct)

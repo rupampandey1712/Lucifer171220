@@ -109,6 +109,8 @@ public sealed class DevDataSeeder(AppDbContext db, IPasswordHasher hasher, TimeP
             foreach (var r in roles) user.AddRole(r);
             user.ClearDomainEvents();
             db.Users.Add(user);
+            db.ConsentRecords.Add(ConsentRecord.Record(user.Id, ConsentPurpose.Terms, true, null, at));
+            db.ConsentRecords.Add(ConsentRecord.Record(user.Id, ConsentPurpose.Privacy, true, null, at));
             return user;
         }
 

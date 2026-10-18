@@ -20,6 +20,7 @@ public interface IAppDbContext
 {
     DbSet<User> Users { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
+    DbSet<ConsentRecord> ConsentRecords { get; }
     DbSet<UserToken> UserTokens { get; }
     DbSet<Property> Properties { get; }
     DbSet<Amenity> Amenities { get; }
