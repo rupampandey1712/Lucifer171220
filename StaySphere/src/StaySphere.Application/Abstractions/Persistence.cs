@@ -50,6 +50,9 @@ public interface IAppDbContext
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Used to discard tracked state before retrying after a concurrency conflict.</summary>
+    Microsoft.EntityFrameworkCore.ChangeTracking.ChangeTracker ChangeTracker { get; }
+
     /// <summary>True when the exception is a unique-index violation (e.g. the double-booking guard).</summary>
     bool IsUniqueViolation(DbUpdateException exception);
 

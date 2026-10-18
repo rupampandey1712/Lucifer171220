@@ -205,8 +205,8 @@ public sealed class MessagingService(
     public async Task<Result<MessageDto>> SendAttachmentAsync(Guid conversationId, Stream content, string fileName, string? caption, CancellationToken ct)
     {
         var me = currentUser.RequireUserId();
-        var c = await db.Conversations.FirstOrDefaultAsync(x => x.Id == conversationId, ct);
-        if (c is null || !c.IsParticipant(me)) return NotFound;
+        var participant = await db.Conversations.AsNoTracking().FirstOrDefaultAsync(x => x.Id == conversationId, ct);
+        if (participant is null || !participant.IsParticipant(me)) return NotFound;
 
         // The endpoint caps the request body (RequestSizeLimit), so buffering here is bounded.
         using var buffer = new MemoryStream();
@@ -240,17 +240,33 @@ public sealed class MessagingService(
             await storage.UploadAsync(StorageContainers.MessageAttachments, key, upload, contentType, ct);
 
         var safeName = SafeFileName(fileName, extension);
-        var sent = c.Send(me, caption ?? string.Empty, new MessageAttachment(key, safeName, contentType, stored.LongLength), clock.GetUtcNow());
-        if (sent.IsFailure)
-        {
-            await storage.DeleteAsync(StorageContainers.MessageAttachments, key, ct);
-            return sent.Error!;
-        }
 
-        c.MarkRead(me, sent.Value.Id);
-        await db.SaveChangesAsync(ct);
-        await PushAsync(c, sent.Value, ct);
-        return ToDto(sent.Value, false);
+        // Processing and uploading take a while; the conversation is loaded only now so a concurrent update (e.g. the
+        // other side reading it) doesn't make this save fail. One retry covers a race in the remaining short window.
+        for (var attempt = 1; ; attempt++)
+        {
+            var c = await db.Conversations.FirstAsync(x => x.Id == conversationId, ct);
+            var sent = c.Send(me, caption ?? string.Empty, new MessageAttachment(key, safeName, contentType, stored.LongLength), clock.GetUtcNow());
+            if (sent.IsFailure)
+            {
+                await storage.DeleteAsync(StorageContainers.MessageAttachments, key, ct);
+                return sent.Error!;
+            }
+
+            c.MarkRead(me, sent.Value.Id);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < 2)
+            {
+                db.ChangeTracker.Clear();
+                continue;
+            }
+
+            await PushAsync(c, sent.Value, ct);
+            return ToDto(sent.Value, false);
+        }
     }
 
     public async Task<Result<AttachmentDownload>> DownloadAttachmentAsync(Guid conversationId, Guid messageId, CancellationToken ct)

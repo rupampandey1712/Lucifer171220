@@ -72,6 +72,18 @@ public sealed class MessagingAttachmentTests(ApiFactory api)
     }
 
     [Fact]
+    public async Task Uploads_survive_the_conversation_being_read_at_the_same_time()
+    {
+        // Regression: the messages page marks the conversation read while the photo is still processing.
+        var (guest, host, conversationId) = await ConversationAsync();
+        var upload = UploadAsync(guest, conversationId, Png(), "street.png");
+        var reads = Enumerable.Range(0, 5).Select(i => (i % 2 == 0 ? guest : host).PostJsonAsync($"/api/v1/conversations/{conversationId}/read", new { }));
+        await Task.WhenAll(reads.Append(upload));
+
+        (await upload).StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task Clean_pdfs_are_accepted_and_active_or_disguised_files_are_rejected()
     {
         var (guest, _, conversationId) = await ConversationAsync();
