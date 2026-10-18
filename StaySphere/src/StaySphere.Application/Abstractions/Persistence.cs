@@ -22,6 +22,12 @@ public interface IAppDbContext
     DbSet<RefreshToken> RefreshTokens { get; }
     DbSet<ConsentRecord> ConsentRecords { get; }
     DbSet<SearchQueryLog> SearchQueryLogs { get; }
+    DbSet<Domain.Experiences.Experience> Experiences { get; }
+    DbSet<Domain.Experiences.ExperienceSlot> ExperienceSlots { get; }
+    DbSet<Domain.Experiences.ExperienceBooking> ExperienceBookings { get; }
+
+    /// <summary>For the rare use case that needs an explicit transaction (run it inside <c>CreateExecutionStrategy()</c>).</summary>
+    Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade Database { get; }
     DbSet<UserToken> UserTokens { get; }
     DbSet<Property> Properties { get; }
     DbSet<Amenity> Amenities { get; }

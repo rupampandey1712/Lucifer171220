@@ -70,6 +70,7 @@ services:
       Database__MigrateOnStartup: "true"
       Database__Seed: "true"
       Swagger__Enabled: "true"
+      FeatureManagement__Experiences: "true"   # on for the local demo; off by default (appsettings.json)
       Cors__Origins__0: http://localhost:5173
     ports: ["8081:8080"]
     extra_hosts: ["host.docker.internal:host-gateway"]   # reach Foundry Local / Ollama running on your machine

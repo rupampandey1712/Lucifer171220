@@ -92,7 +92,7 @@ export function Navbar() {
         <Logo />
         <nav className="hidden items-center gap-1 md:flex" aria-label="Primary">
           <NavLink to="/search" className={({ isActive }) => clsx('rounded-full px-4 py-2 text-sm font-medium hover:bg-slate-100', isActive && 'text-slate-900')}>Stays</NavLink>
-          {flags.data?.Experiences ? <NavLink to="/search" className="rounded-full px-4 py-2 text-sm text-slate-500 hover:bg-slate-100">Experiences</NavLink>
+          {flags.data?.Experiences ? <NavLink to="/experiences" className={({ isActive }) => clsx('rounded-full px-4 py-2 text-sm font-medium hover:bg-slate-100', isActive && 'text-slate-900')}>Experiences</NavLink>
             : <span className="cursor-default rounded-full px-4 py-2 text-sm text-slate-400" title="Coming soon">Experiences <span className="text-xs">soon</span></span>}
         </nav>
         <div className="flex items-center gap-2">
@@ -164,10 +164,11 @@ function SideNav({ links }: { links: [string, string][] }) {
 }
 
 export function HostLayout() {
+  const flags = useFeatureFlags();
   return (
     <RequireRole role="Host">
       <div className="container-page py-8">
-        <SideNav links={[['/host', 'Today'], ['/host/properties', 'Listings'], ['/host/calendar', 'Calendar'], ['/host/reservations', 'Reservations'], ['/host/earnings', 'Earnings'], ['/host/promotions', 'Promotions'], ['/host/reviews', 'Reviews'], ['/host/analytics', 'Analytics'], ['/host/verification', 'Verification']]} />
+        <SideNav links={[['/host', 'Today'], ['/host/properties', 'Listings'], ['/host/calendar', 'Calendar'], ['/host/reservations', 'Reservations'], ['/host/earnings', 'Earnings'], ['/host/promotions', 'Promotions'], ['/host/reviews', 'Reviews'], ['/host/analytics', 'Analytics'], ['/host/verification', 'Verification'], ...(flags.data?.Experiences ? [['/host/experiences', 'Experiences'] as [string, string]] : [])]} />
         <Outlet />
       </div>
     </RequireRole>

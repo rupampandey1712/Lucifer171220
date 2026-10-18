@@ -655,3 +655,56 @@ internal sealed class SearchQueryLogConfiguration : IEntityTypeConfiguration<Sea
         b.HasIndex(x => x.SearchedAt);
     }
 }
+
+internal sealed class ExperienceConfiguration : IEntityTypeConfiguration<Domain.Experiences.Experience>
+{
+    public void Configure(EntityTypeBuilder<Domain.Experiences.Experience> b)
+    {
+        b.ToTable("Experiences", "experiences");
+        b.Property(x => x.Id).ValueGeneratedNever();
+        b.Property(x => x.Title).HasMaxLength(120);
+        b.Property(x => x.Description).HasMaxLength(4000);
+        b.Property(x => x.Category).HasConversion<string>().HasMaxLength(20);
+        b.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+        b.Property(x => x.City).HasMaxLength(100);
+        b.Property(x => x.CountryCode).HasMaxLength(2).IsFixedLength();
+        b.Property(x => x.MeetingPoint).HasMaxLength(300);
+        b.Property(x => x.PricePerGuest).HasPrecision(18, 2);
+        b.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+        b.Property(x => x.ImageUrl).HasMaxLength(1000);
+        b.Property(x => x.RowVersion).IsRowVersion();
+        b.HasIndex(x => new { x.Status, x.City });
+        b.HasIndex(x => x.HostId);
+        b.HasMany(x => x.Slots).WithOne().HasForeignKey(s => s.ExperienceId).OnDelete(DeleteBehavior.Cascade);
+        b.Navigation(x => x.Slots).UsePropertyAccessMode(PropertyAccessMode.Field);
+        b.HasOne<User>().WithMany().HasForeignKey(x => x.HostId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class ExperienceSlotConfiguration : IEntityTypeConfiguration<Domain.Experiences.ExperienceSlot>
+{
+    public void Configure(EntityTypeBuilder<Domain.Experiences.ExperienceSlot> b)
+    {
+        b.ToTable("ExperienceSlots", "experiences", t => t.HasCheckConstraint("CK_ExperienceSlots_Booked", "[Booked] >= 0 AND [Booked] <= [Capacity]"));
+        b.Property(x => x.Id).ValueGeneratedNever();
+        b.Ignore(x => x.Remaining);
+        b.HasIndex(x => new { x.ExperienceId, x.StartsAt });
+    }
+}
+
+internal sealed class ExperienceBookingConfiguration : IEntityTypeConfiguration<Domain.Experiences.ExperienceBooking>
+{
+    public void Configure(EntityTypeBuilder<Domain.Experiences.ExperienceBooking> b)
+    {
+        b.ToTable("ExperienceBookings", "experiences");
+        b.Property(x => x.Id).ValueGeneratedNever();
+        b.Property(x => x.Total).HasPrecision(18, 2);
+        b.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+        b.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
+        b.Property(x => x.RowVersion).IsRowVersion();
+        b.HasIndex(x => new { x.GuestId, x.StartsAt });
+        b.HasIndex(x => x.SlotId);
+        b.HasOne<Domain.Experiences.ExperienceSlot>().WithMany().HasForeignKey(x => x.SlotId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<User>().WithMany().HasForeignKey(x => x.GuestId).OnDelete(DeleteBehavior.Restrict);
+    }
+}

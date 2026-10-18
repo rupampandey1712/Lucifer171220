@@ -167,3 +167,15 @@ query string, and that query string is excluded from request logging.
 - Cursor pagination (search, messages, notifications): `?cursor=<opaque base64 of sort key + id>`.
   The response shape is `{ items, nextCursor }`. Both use the same `PagedResult<T>` contract
   interface, so search can switch to cursors without a v2.
+
+## Experiences (feature flag `Experiences`; 404 while off)
+| Method | Route | Auth | Idempotent | Notes |
+|---|---|---|---|---|
+| GET | /experiences?city&category&date&guests | Anon | | Published experiences with an upcoming session that has room, soonest first |
+| GET | /experiences/{id} | Anon (drafts: owner/admin) | | Detail with upcoming sessions and seats left |
+| POST | /experiences/{id}/bookings `{slotId, guests}` | User | ✅ | Total = price × guests (server); 409 when not enough seats (atomic) |
+| GET | /experience-bookings | User | | Mine |
+| POST | /experience-bookings/{id}/cancel | User | | Free until 24 h before; seats go back on sale |
+| GET/POST | /host/experiences | Host | | List mine / create draft |
+| POST | /host/experiences/{id}/slots `{startsAt, capacity?}` | Host | | No overlapping sessions; ≥ 2 h ahead |
+| POST | /host/experiences/{id}/publish | Host | | Needs an upcoming session |

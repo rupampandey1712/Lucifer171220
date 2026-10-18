@@ -19,6 +19,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ConsentRecord> ConsentRecords => Set<ConsentRecord>();
     public DbSet<SearchQueryLog> SearchQueryLogs => Set<SearchQueryLog>();
+    public DbSet<Domain.Experiences.Experience> Experiences => Set<Domain.Experiences.Experience>();
+    public DbSet<Domain.Experiences.ExperienceSlot> ExperienceSlots => Set<Domain.Experiences.ExperienceSlot>();
+    public DbSet<Domain.Experiences.ExperienceBooking> ExperienceBookings => Set<Domain.Experiences.ExperienceBooking>();
     public DbSet<UserToken> UserTokens => Set<UserToken>();
     public DbSet<Property> Properties => Set<Property>();
     public DbSet<Amenity> Amenities => Set<Amenity>();

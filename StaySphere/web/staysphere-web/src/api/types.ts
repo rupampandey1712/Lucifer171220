@@ -60,3 +60,7 @@ export interface Paged<T> {
 
 export interface WeatherDay { date: string; minC: number; maxC: number; weatherCode: number; summary: string }
 export interface WeatherResult { currentTempC?: number | null; currentSummary?: string | null; daily: WeatherDay[]; source: string }
+export type ExperienceCard = S['Experiences.ExperienceCardDto'];
+export type ExperienceDetail = S['Experiences.ExperienceDetailDto'];
+export type ExperienceSlot = S['Experiences.ExperienceSlotDto'];
+export type ExperienceBooking = S['Experiences.ExperienceBookingDto'];

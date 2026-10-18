@@ -3,6 +3,7 @@ import { clsx } from 'clsx';
 import { CalendarCheck2, CheckCircle2, CreditCard, Hourglass, Lock, MessageSquare, Plane, Star, Timer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
+import { useFeatureFlags } from '@/lib/hooks';
 import { api, ApiError, newIdempotencyKey, toQuery } from '@/api/client';
 import type { CancellationPreview, Paged, PaymentDto, ReservationDto } from '@/api/types';
 import { EmptyState, ErrorState, Modal, PageHeader, PageLoader, Skeleton, Spinner, StatusBadge, SafeImg } from '@/components/ui';
@@ -162,12 +163,17 @@ export function CheckoutPage() {
   );
 }
 
+function ExperienceBookingsLink() {
+  const flags = useFeatureFlags();
+  return flags.data?.Experiences ? <Link className="btn-ghost underline" to="/trips/experiences">Experience bookings</Link> : null;
+}
+
 export function TripsPage() {
   const [scope, setScope] = useState<'upcoming' | 'past' | 'cancelled'>('upcoming');
   const trips = useQuery({ queryKey: ['trips', scope], queryFn: () => api<Paged<ReservationDto>>(`/reservations${toQuery({ scope, pageSize: 50 })}`) });
   return (
     <div className="container-page py-10">
-      <PageHeader title="Trips" />
+      <PageHeader title="Trips" actions={<ExperienceBookingsLink />} />
       <div className="mb-6 flex gap-2" role="tablist">
         {(['upcoming', 'past', 'cancelled'] as const).map((s) => <button key={s} role="tab" aria-selected={scope === s} className={clsx('chip capitalize', scope === s && 'chip-active')} onClick={() => setScope(s)}>{s}</button>)}
       </div>

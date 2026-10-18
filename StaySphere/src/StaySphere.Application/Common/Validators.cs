@@ -289,3 +289,31 @@ public sealed class ReviewHostVerificationRequestValidator : AbstractValidator<R
         RuleFor(x => x.Reason).MaximumLength(500);
     }
 }
+
+public sealed class CreateExperienceRequestValidator : AbstractValidator<Contracts.Experiences.CreateExperienceRequest>
+{
+    public CreateExperienceRequestValidator()
+    {
+        RuleFor(x => x.Title).NotEmpty().MinimumLength(5).MaximumLength(120);
+        RuleFor(x => x.Description).NotEmpty().MinimumLength(30).MaximumLength(4000);
+        RuleFor(x => x.Category).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.City).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.CountryCode).NotEmpty().Length(2);
+        RuleFor(x => x.MeetingPoint).NotEmpty().MaximumLength(300);
+        RuleFor(x => x.DurationMinutes).InclusiveBetween(Domain.Experiences.Experience.MinDurationMinutes, Domain.Experiences.Experience.MaxDurationMinutes);
+        RuleFor(x => x.MaxGuests).InclusiveBetween(1, Domain.Experiences.Experience.MaxGroupSize);
+        RuleFor(x => x.PricePerGuest).GreaterThan(0).LessThanOrEqualTo(100_000);
+        RuleFor(x => x.Currency).Currency();
+        RuleFor(x => x.ImageUrl).MaximumLength(1000).Must(u => u is null || u.StartsWith("https://", StringComparison.Ordinal))
+            .WithMessage("Image URLs must use https.");
+    }
+}
+
+public sealed class BookExperienceRequestValidator : AbstractValidator<Contracts.Experiences.BookExperienceRequest>
+{
+    public BookExperienceRequestValidator()
+    {
+        RuleFor(x => x.SlotId).NotEmpty();
+        RuleFor(x => x.Guests).InclusiveBetween(1, Domain.Experiences.Experience.MaxGroupSize);
+    }
+}

@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<IPropertyService, PropertyService>();
         services.AddScoped<ISeoService, SeoService>();
+        services.AddScoped<Experiences.IExperienceService, Experiences.ExperienceService>();
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<ISearchProvider, DatabaseSearchProvider>();
         services.AddScoped<IAvailabilityService, AvailabilityService>();

@@ -279,6 +279,30 @@ public sealed class DevDataSeeder(AppDbContext db, IPasswordHasher hasher, TimeP
         db.Promotions.Add(Promotion.Create("Early bird", PromotionKind.EarlyBird, 10m, demoHost.Id, null, null, 60, null, null,
             now.AddDays(-1), now.AddDays(365), demoHost.Id, now).Value);
 
+        // Experiences (shown when the Experiences feature flag is on): sessions at 10:00 and 17:00 UTC over the next 30 days.
+        (string Title, string Description, Domain.Experiences.ExperienceCategory Category, string City, string Country, string Meet, int Minutes, int Max, decimal Price, string Currency)[] experiences =
+        [
+            ("Alfama food and fado walk", "Six tastings in Lisbon's oldest quarter, from bifanas to ginjinha, ending at a tiny fado house.", Domain.Experiences.ExperienceCategory.Food, "Lisbon", "PT", "Largo do Chafariz de Dentro", 180, 10, 65m, "EUR"),
+            ("Azulejo tile painting class", "Paint your own Portuguese tile with a ceramicist and take it home after firing.", Domain.Experiences.ExperienceCategory.Art, "Lisbon", "PT", "Rua de São Bento 120", 120, 8, 48m, "EUR"),
+            ("Montmartre sketching stroll", "Draw the hidden corners of Montmartre with a local illustrator. All materials included.", Domain.Experiences.ExperienceCategory.Art, "Paris", "FR", "Place des Abbesses metro exit", 150, 8, 55m, "EUR"),
+            ("Sunrise yoga on Barceloneta", "A gentle flow class on the beach as the sun comes up, followed by fresh orange juice.", Domain.Experiences.ExperienceCategory.Wellness, "Barcelona", "ES", "Platja de la Barceloneta, lifeguard tower 2", 75, 15, 22m, "EUR"),
+            ("Berlin street art by bike", "Cycle between murals and backyard galleries in Kreuzberg and Friedrichshain with an artist.", Domain.Experiences.ExperienceCategory.Culture, "Berlin", "DE", "Warschauer Straße station, south exit", 180, 12, 39m, "EUR"),
+            ("Reykjavik northern lights hunt", "A small-group evening drive away from city lights, with hot chocolate and photo tips.", Domain.Experiences.ExperienceCategory.Outdoors, "Reykjavik", "IS", "Hallgrímskirkja front steps", 240, 12, 89m, "EUR"),
+        ];
+        var experienceHosts = new[] { demoHost, hosts[1 % hosts.Count], hosts[2 % hosts.Count] };
+        for (var i = 0; i < experiences.Length; i++)
+        {
+            var x = experiences[i];
+            var e = Domain.Experiences.Experience.Create(experienceHosts[i % experienceHosts.Length].Id, x.Title, x.Description, x.Category, x.City, x.Country,
+                x.Meet, x.Minutes, x.Max, x.Price, x.Currency, $"https://picsum.photos/seed/experience-{i}/1280/853", now.AddDays(-30)).Value;
+            var midnight = new DateTimeOffset(now.UtcDateTime.Date, TimeSpan.Zero);
+            for (var day = 1; day <= 30; day += 1 + i % 2)
+                foreach (var hour in x.Category == Domain.Experiences.ExperienceCategory.Outdoors && x.City == "Reykjavik" ? new[] { 20 } : new[] { 10, 17 })
+                    e.AddSlot(midnight.AddDays(day).AddHours(hour), null, now);
+            e.Publish(now);
+            db.Experiences.Add(e);
+        }
+
         db.Coupons.Add(Coupon.Create("WELCOME10", 10, null, null, 0, now.AddDays(-30), now.AddYears(1), 10_000));
         db.Coupons.Add(Coupon.Create("SUMMER25", 25, null, null, 200, now.AddDays(-5), now.AddMonths(4), 500));
 
